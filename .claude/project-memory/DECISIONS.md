@@ -116,3 +116,4 @@
 [D-149][hooks][skills] a toolkit mod shows the plan in a side pane; the gate reads it
 [D-150][hooks][skills] the side pane shows the whole task (issue) plus each agent's work and tally
 [D-151][hooks][skills] pane layout: task, phases, steps; agents only under the step in progress
+[D-152][hooks][skills] work with no issue shows in the pane as a plain task titled by the request
