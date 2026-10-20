@@ -78,6 +78,12 @@ export const register: Register = on => {
     return { result: isTask ? 'The task is in the plan pane.' : `Step ${String(input.step)} is ${String(input.status)}.` }
   }).catch(() => ({ deny: 'the plan tool failed: the pane was not updated' }))
 
+  // The engine may drop the spec's isDeferred; this answer is read ahead of it.
+  on('tool.describe', { tool: 'mcp__unmassk-toolkit__plan' }, async ($, e, next) => ({
+    ...(await next(e)),
+    isDeferred: false,
+  }))
+
   on('agent.spawn', async ($, e, next) => {
     const started = await next(e)
     const agentId = started.deny === undefined ? started.agentId : undefined
