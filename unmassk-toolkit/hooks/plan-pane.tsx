@@ -47,8 +47,9 @@ const taskRow = (task: PlanTask) =>
   `${task.title}${issueOf(task.issue)}` +
   (task.finishedAt === null ? '' : ` · ${formatDuration(task.finishedAt - task.startedAt)}`)
 
-const stepRow = (step: PlanStep) =>
-  `  ${MARK[step.status]} ${step.title}${step.rounds > 1 ? ` ↻${step.rounds}` : ''}`
+const roundsOf = (rounds: number) => (rounds > 1 ? ` ↻${rounds}` : '')
+
+const stepRow = (step: PlanStep) => `  ${MARK[step.status]} ${step.title}${roundsOf(step.rounds)}`
 
 const agentRow = (agent: PlanAgent) =>
   `      ${agent.type.split(':').pop()} · ${agent.result ?? 'running'}` +
@@ -89,7 +90,7 @@ export const register: Register = on => {
     const ended = await next(e)
     const agentId = e.agentId
     if (agentId !== undefined) {
-      await change($, plan => ({ plan: endAgent(plan, agentId, e.answer, e.durationMs) }))
+      await change($, plan => ({ plan: endAgent(plan, agentId, e.answer, e.durationMs, e.reason) }))
     }
 
     return ended
