@@ -143,3 +143,4 @@
 [X-143][hooks][skills] install wapacz claude-todo-tracker as is
 [X-144][hooks][skills] a mod reading the app's update_plan list
 [X-145][hooks][skills] a plan only for flow tasks
+[X-146][hooks][skills] group by stage (prepare, build, review)
