@@ -1,5 +1,6 @@
 {
   "description": "unmassk-core hooks — boot, commit validation, orchestrator rules, memory path safety",
+  "modules": ["plan-pane.tsx"],
   "hooks": {
     "SessionStart": [
       {

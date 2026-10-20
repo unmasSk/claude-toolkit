@@ -2,7 +2,7 @@
 
 **Issue:** #98
 **Branch:** main (trunk)
-**Procedure:** Full
+**Procedure:** Short (D-155; was Full)
 **Build mode:** test-first
 **Base:** c81f1d08
 **Created:** 2026-10-20
@@ -26,8 +26,8 @@ Yes: what the model sends to the mod's plan tool is kept in the mod's state and 
 ### Phase 1: the mod loads and opens an empty pane
 **Files:** create the mod (manifest, hooks module, types contract) inside `unmassk-toolkit/`, or as its own plugin of the marketplace if one plugin cannot hold both settings hooks and a hooks module (decided by `claude plugin validate`, recorded as a decision)
 - [x] 1.1 Dante: test that the module registers and the pane opens on `session.start`
-- [ ] 1.2 Ultron: skeleton until green; `claude plugin validate` clean
-- [ ] 1.3 verify: `claude plugin test <mod>` green
+- [x] 1.2 Ultron: skeleton until green; `claude plugin validate` clean
+- [x] 1.3 verify: `claude plugin test <mod>` green
 
 ### Phase 2: the plan tool and the pane
 **Depends on:** Phase 1

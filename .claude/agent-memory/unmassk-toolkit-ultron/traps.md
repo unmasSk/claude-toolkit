@@ -36,6 +36,10 @@ Checked against the tree on 2026-10-16. If one stops being true, delete the line
 - A reviewer's "code-only" line count may leave out blank lines: check the floor with every docstring and comment removed before promising a file can reach 300 by cutting docstrings.
 - `managed_blocks.py` BLOCKS[0]: the short restore body is intended; the longer one in git history is not the right one.
 
+## Mods (plan-pane)
+- `claude plugin validate` reads a hook matcher only from a plain literal const: `requestId: PANE.id` shows as `requestId=?` though tests pass.
+- `claude plugin test` refuses the `claude` shell alias: call `/Users/unmassk/.local/bin/claude`.
+
 ## chatroom/
 - Bun `mock.module()` leaks across test files: assert on DB state, or use a `_setXForTesting()` setter.
 - Elysia `publishToSelf` does nothing: deliver to self by hand. The WS `upgrade()` hook ignores return values.
