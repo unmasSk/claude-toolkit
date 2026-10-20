@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.54.0] - 2026-10-20
+
 ### Added
 
 - **Plan pane look copied from nix-checklist-sidebar** (D-158, D-160, D-161, D-162; MIT, credited in `unmassk-toolkit/hooks/NOTICE`): green, orange and grey icons and pills for done, in progress and pending, each step carries its number, and the duration sits right-aligned (`45s`, `12m 05s`, `1h 05m`).
