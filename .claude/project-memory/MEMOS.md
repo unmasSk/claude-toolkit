@@ -140,3 +140,4 @@
 [M-161][hooks][skills] plan side-pane mods: none reads the app's update_plan list
 [M-162][install][hooks] Bex runs only the current Claude Code, never an older one
 [M-163][hooks][skills] a mod cannot draw inside the desktop session sidebar, only its own pane
+[M-164][memory][architecture] R.17 dead-ends: the overlap bounce is the relaunch text, not the gate
