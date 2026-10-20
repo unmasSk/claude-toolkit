@@ -32,19 +32,19 @@ Yes: what the model sends to the mod's plan tool is kept in the mod's state and 
 ### Phase 2: the plan tool and the pane
 **Depends on:** Phase 1
 - [x] 2.1 Dante: tests for a plan tool the model calls (whole task: title, issue or none, phases, steps; and step status changes) and for the drawn tree (D-151, D-152)
-- [ ] 2.2 Ultron: tool, state and drawing until green
-- [ ] 2.3 verify: `claude plugin test <mod>` green
+- [x] 2.2 Ultron: tool, state and drawing until green
+- [x] 2.3 verify: `claude plugin test <mod>` green
 
 ### Phase 3: agents in the step in progress
 **Depends on:** Phase 2
 - [x] 3.1 Dante: tests that each agent launched while a step is in progress shows under it with result and time, fix rounds counted, and disappears when the step ends (D-151)
-- [ ] 3.2 Ultron: agent tracking until green
-- [ ] 3.3 verify: `claude plugin test <mod>` green
+- [x] 3.2 Ultron: agent tracking until green
+- [x] 3.3 verify: `claude plugin test <mod>` green
 
 ### Phase 4: finished tasks and the round trip
 **Depends on:** Phase 3
 - [x] 4.1 Dante: round trip — plan tool input → state → drawn tree, expected values from the real read; a finished task folds to one line when the next starts (D-153)
-- [ ] 4.2 Ultron: fold until green
+- [x] 4.2 Ultron: fold until green
 
 ### Phase 5: Claude uses it
 **Depends on:** Phase 2

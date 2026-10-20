@@ -6,5 +6,6 @@
     "name": "unmasSk"
   },
   "repository": "https://github.com/unmasSk/claude-toolkit",
-  "license": "MIT"
+  "license": "MIT",
+  "types": "./hooks/plan-pane-state.d.ts"
 }

@@ -39,6 +39,9 @@ Checked against the tree on 2026-10-16. If one stops being true, delete the line
 ## Mods (plan-pane)
 - `claude plugin validate` reads a hook matcher only from a plain literal const: `requestId: PANE.id` shows as `requestId=?` though tests pass.
 - `claude plugin test` refuses the `claude` shell alias: call `/Users/unmassk/.local/bin/claude`.
+- The skill's types can be newer than the installed engine: Text `weight` is declared (2.1.299) but 2.1.287 refuses it; trust the test run, use `bold`.
+- Any `$.state` key fails `validate` unless plugin.json names a `"types"` .d.ts declaring it in PluginState.
+- No tsc on this machine: a mod's type-check stays UNVERIFIED unless one is installed.
 
 ## chatroom/
 - Bun `mock.module()` leaks across test files: assert on DB state, or use a `_setXForTesting()` setter.
