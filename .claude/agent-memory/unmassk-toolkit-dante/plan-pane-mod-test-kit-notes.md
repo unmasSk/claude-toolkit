@@ -32,6 +32,8 @@ Mod tests (`*.test.ts`, kit `claude-code/testing`) for the #98 plan pane, in `un
 - Built-in tool calls (D-156 close gate): `$.tool.call({ tool: 'Bash', command })` reaches the kit's bottom `tool.call` (it records into `fellThrough` and denies "reached the bottom"). So "passed untouched" = fellThrough holds exactly `[['Bash', command]]` and the answer is the bottom's; "refused" = own deny + fellThrough empty. The plugin's classic PreToolUse settings hooks (customs.py…) did not interfere in the test run.
 - An event the kit already hooks (state.get) can still get a second test hook if it carries a MATCHER (`on('state.get', PLAN_STATE, ...)`), registered before startSession: no "registered twice". A toggled `{ deny }` there makes the module's `$.state.get` reject and reaches its `.catch` (D-156 fail-closed test).
 - Writing a test command that contains `git commit -m` through a Bash heredoc trips the customs hook: put such strings in with the Edit tool.
+- The LIVE close gate also judges my own Bash: a heredoc holding `bin/release.py` / `gh issue close` / `gitmem next` text is refused while the session's plan has steps open. Write test files with Write/Edit, never a Bash heredoc.
+- D-163 (gate counts only steps BEFORE the in-progress one): kill set = count-the-running-step, count-steps-after, only-the-step-just-before (needs two undone earlier steps), ignore-all-when-running; plus a cross-phase "before" case. PASSING commands must run in a state where closing IS refused, else they prove nothing.
 
 **Why:** first mod in the repo; kit docs live only in the plugin-authoring skill's types file (`declare module 'claude-code/testing'`).
 **How to apply:** phases 2-4 of #98 reuse the startSession helper pattern and the scratchpad empty-module trick.
