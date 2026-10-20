@@ -99,4 +99,5 @@
 - [duplicate-id-remove-contract-notes.md](duplicate-id-remove-contract-notes.md) — #105 D-145 duplicate id, sha-prefix collision, pasted relaunches; D-147 boot alert over twin readers
 - [install-protected-branch-d157-contract-notes.md](install-protected-branch-d157-contract-notes.md) — D-157 installer no-commit on gitflow main: two doors, stale-manifest upgrade trap
 - [plan-pane-paint-assertion-notes.md](plan-pane-paint-assertion-notes.md) — plan pane label paint: weight vs bold, paintAt pattern
+- [usage-bars-mod-test-kit-notes.md](usage-bars-mod-test-kit-notes.md) — D-166 AbovePrompt band: one module per plugin, tree bottom, measure echo, next-session sim
 - [overlap-exit-every-type-d164-contract-notes.md](overlap-exit-every-type-d164-contract-notes.md) — R.17/D-164 overlap exits; 4.2 literal-paste round-trip vs first invocation
