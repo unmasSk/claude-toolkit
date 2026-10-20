@@ -29,4 +29,8 @@ R.17 step 4.2 (2026-10-20), Moriarty fix pass: `relaunch_fidelity_support.py` + 
 - Placeholder scan over every body: value `...` or `<...>` = saved hole.
 - `_carry_cli_flags` substring check: a headline naming a flag (`--issue`, `--quote`, `--work`, `--promotes`, `--discard`) suppresses the carry.
 - Remove fence: drive "the printed way" (run, paste relaunch up to 2 steps) so either fix (no bounce, or a non-self relaunch) passes.
-- Mutant copies need `git init` + an empty commit, or every test errors (conftest real-repo guard): run init/commit via python subprocess, the customs hook blocks bash `git commit`.
+- ABUSE 3 (closing types never replaced): overlap candidate order = query order, newest first, similar before exact-key. To list an I before a D, seed the D first and the I with `--replaces none`.
+- Remove fence `others[0]` can be another live I/X in the zone: a fence R then archives an open incident.
+- issue_not_found needs a fake gh whose stderr says "Could not resolve to an issue or pull request" (exit 1); any other stderr becomes "no se pudo comprobar".
+- note.py `_relaunch_words` fallback is reached with a zone name holding an apostrophe (zones.json accepts it).
+- Mutant copies need `git init` + an empty commit, or every test errors (conftest real-repo guard): put init/commit in a scratch .py file and run it; the customs hook scans even inline heredoc text for `git commit`.
