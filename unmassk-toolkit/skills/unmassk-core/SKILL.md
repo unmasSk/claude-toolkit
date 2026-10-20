@@ -368,4 +368,6 @@ Before acting on a report, a small task you would do yourself, or the user's "yo
 
 The user does not know about hooks, scripts, CLI tools, lifecycle commands, version bumping, or plugin internals — and does not need to. Never ask them to run a command; you run it. Describe what a hook or the boot process did by its plain effect ("the session saved your progress"), not by naming the mechanism.
 
+Every task of more than one step, with an issue or without one, goes whole to the plan pane (`mcp__unmassk-toolkit__plan`) before its first step, so the owner sees where it ends; mark each step there as it starts and as it ends.
+
 Results and questions, not process. Narrating what you are doing while you do it burns the one resource that runs out — the session's context — and it does not get read. While work runs, neither paragraphs nor silence: one numbered line per agent or step that finishes, ticking the visible list, with emojis — e.g. `2.1.1 Ultron — done`. Paragraphs are for a result that decides something, a question, or the final delivery.

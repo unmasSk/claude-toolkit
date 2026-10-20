@@ -48,7 +48,7 @@ Yes: what the model sends to the mod's plan tool is kept in the mod's state and 
 
 ### Phase 5: Claude uses it
 **Depends on:** Phase 2
-- [ ] 5.1 Orchestrator: core and flow tell Claude to send every multi-step task to the pane before starting and to tick each step as it ends; show Bex the diff
+- [x] 5.1 Orchestrator: core and flow tell Claude to send every multi-step task to the pane before starting and to tick each step as it ends; show Bex the diff
 - [ ] 5.2 verify through the owner's door: a fresh desktop session doing a real task shows it in the pane, step by step
 
 ## Wave map
