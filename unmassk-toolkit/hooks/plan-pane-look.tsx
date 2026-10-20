@@ -2,7 +2,7 @@
 // nix-checklist-sidebar (hooks/register.tsx), Copyright (c) 2026 nikscz, MIT; see NOTICE beside this file.
 import type { Elements } from 'claude-code'
 
-import { agentSoFar, formatDuration, isStopped, stepSoFar, stepsOf } from './plan-pane-model.ts'
+import { agentSoFar, formatDuration, isStopped, stepSoFar, stepsOf, taskSoFar } from './plan-pane-model.ts'
 import type { Plan, PlanAgent, PlanStatus, PlanStep, PlanTask } from './plan-pane-state'
 
 // What every surface draws with; Svg is absent on the terminal only.
@@ -74,10 +74,6 @@ const tookOf = (step: PlanStep, now: number) => {
 
 const issueOf = (issue: number | null) => (issue === null ? '' : ` #${issue}`)
 
-const taskRow = (task: PlanTask) =>
-  `${task.title}${issueOf(task.issue)}` +
-  (task.finishedAt === null ? '' : ` · ${formatDuration(task.finishedAt - task.startedAt)}`)
-
 // Like "3/7": the step being worked on, or how many are done once none is.
 const counterOf = (steps: PlanStep[]) => {
   const done = steps.filter(step => step.status === 'done').length
@@ -119,13 +115,26 @@ const Rounds = ({ Box, Text }: Ui, rounds: number) =>
     </Box>
   ) : null
 
-// What a row took, pushed to its right edge by the growing part before it.
-const Took = ({ Box, Text }: Ui, took: string | null) =>
+// What a row took, pushed to its right edge by the growing part before it; dim unless painted.
+const Took = ({ Box, Text }: Ui, took: string | null, paint: { color?: string } = {}) =>
   took === null ? null : (
     <Box flexShrink={0}>
-      <Text dimColor>{took}</Text>
+      <Text dimColor={paint.color === undefined} {...paint}>{took}</Text>
     </Box>
   )
+
+// The task's title, cut, and its total so far at the row's end (frozen once finished).
+const TitleRow = (ui: Ui, task: PlanTask, now: number) => {
+  const { Box, Text } = ui
+  return (
+    <Box flexDirection="row" gap={1}>
+      <Box flexGrow={1} flexShrink={1} minWidth={0}>
+        <Text bold wrap="truncate-end">{`${task.title}${issueOf(task.issue)}`}</Text>
+      </Box>
+      {Took(ui, formatDuration(taskSoFar(task, now)))}
+    </Box>
+  )
+}
 
 // Only the numbered title is cut: the round mark and the duration always show.
 const StepRow = (ui: Ui, step: PlanStep, now: number) => {
@@ -145,7 +154,8 @@ const StepRow = (ui: Ui, step: PlanStep, now: number) => {
         </Box>
         {Rounds(ui, step.rounds)}
       </Box>
-      {Took(ui, tookOf(step, now))}
+      {/* A done step's time takes its label's grey. */}
+      {Took(ui, tookOf(step, now), step.status === 'done' ? LABEL_PAINT.done : {})}
     </Box>
   )
 }
@@ -178,7 +188,7 @@ export const drawPane = (ui: Ui, plan: Plan, columns: number, now: number) => {
       {task === null && <Text dimColor>No plan yet.</Text>}
       {task !== null && (
         <Box flexDirection="column" marginBottom={1}>
-          <Text bold wrap="truncate-end">{taskRow(task)}</Text>
+          {TitleRow(ui, task, now)}
           {Bar(ui, stepsOf(task))}
         </Box>
       )}

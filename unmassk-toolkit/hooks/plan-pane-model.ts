@@ -117,8 +117,9 @@ export const applyStatus = (plan: Plan, stepId: unknown, status: unknown, now: n
 const activeStep = (task: PlanTask): PlanStep | undefined =>
   stepsOf(task).find(step => step.status === 'in_progress')
 
-// Whether anything shows a live time: a step in progress (running agents sit only under one).
-export const isTicking = (plan: Plan) => plan.current !== null && activeStep(plan.current) !== undefined
+// Whether anything shows a live time: the total of a task not finished (its running steps and
+// agents included), between steps too.
+export const isTicking = (plan: Plan) => plan.current !== null && plan.current.finishedAt === null
 
 // An agent launched with no step in progress is not drawn.
 export const addAgent = (plan: Plan, agentId: string, type: string, now: number): Plan => {
@@ -171,6 +172,9 @@ export const formatDuration = (ms: number) => {
   if (ms < HOUR_MS) return `${Math.floor(ms / MINUTE_MS)}m ${twoDigits(seconds % 60)}s`
   return `${Math.floor(ms / HOUR_MS)}h ${twoDigits(Math.floor(ms / MINUTE_MS) % 60)}m`
 }
+
+// The task's total: from its start to now, or to its end once every step is done.
+export const taskSoFar = (task: PlanTask, now: number) => (task.finishedAt ?? now) - task.startedAt
 
 // A step in progress: its closed spans plus the open one so far; null when it is not running.
 export const stepSoFar = (step: PlanStep, now: number) =>
