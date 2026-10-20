@@ -150,3 +150,4 @@
 [X-150][hooks][skills] block at every turn end, as today
 [X-151][hooks][skills] a file the mod writes for the Python gate to read
 [X-152][install][memory] never commit, always leave the changes
+[X-153][install][memory] keep committing on any branch
