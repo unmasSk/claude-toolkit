@@ -138,3 +138,4 @@
 [M-159][hooks][skills] hooks see the app's update_plan calls; partial ones carry no full list
 [M-160][hooks][skills] R.1 gate-map dead-ends: no app-list code anywhere; _board_dir is right
 [M-161][hooks][skills] plan side-pane mods: none reads the app's update_plan list
+[M-162][install][hooks] Bex runs only the current Claude Code, never an older one
