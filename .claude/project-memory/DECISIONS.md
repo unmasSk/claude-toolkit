@@ -112,5 +112,5 @@
 [D-143][memory][skills] a redo close covers the whole session: skip this session's own earlier close
 [D-144][memory][skills] close extractor reads every transcript since the last close, not only newest
 [D-145][memory][testing] gitmem remove refuses a duplicated id; --commit picks one note
-[D-146][hooks][skills] checklist gate also reads the desktop app's task list (R.1)
 [D-148][memory][boot] boot alarms a repeated id only while two or more copies are live
+[D-149][hooks][skills] a toolkit mod shows the plan in a side pane; the gate reads it
