@@ -125,3 +125,4 @@
 [D-158][hooks][skills] the plan pane copies the Checklist mod's look Bex sent
 [D-161][hooks][skills] plan pane right column shows duration; steps carry their number
 [D-162][hooks][skills] the running step and running agents show a live ticking time
+[D-163][hooks][skills] the pane gate counts only steps before the one in progress
