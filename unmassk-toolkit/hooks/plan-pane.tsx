@@ -41,15 +41,22 @@ const change = async ($: StateDollar, apply: (plan: Plan) => Change): Promise<st
   return error
 }
 
-// Commands that call the work done (D-156); a release dry run closes nothing.
+// Commands that call the work done (D-156), caught only where a command starts: a mention closes nothing,
+// and neither does a release dry run.
+const SEPARATOR = /[;&|(\n]/
+const CLOSE_COMMAND = /^\s*(?:gh\s+issue\s+close|gitmem\s+next)\b/
+const RELEASE = /^\s*(?:python3?\s+)?(?:\S*\/)?bin\/release\.py\b/
+
 const isClosing = (command: string) =>
-  /\bgh\s+issue\s+close\b/.test(command) ||
-  /\bgitmem\s+next\b/.test(command) ||
-  (/\bbin\/release\.py\b/.test(command) && !/--dry-run\b/.test(command))
+  command
+    .split(SEPARATOR)
+    .some(part => CLOSE_COMMAND.test(part) || (RELEASE.test(part) && !/--dry-run\b/.test(part)))
+
+const stepLabel = (step: PlanStep) => `${step.id} ${step.title}`
 
 const closeRefusal = (task: PlanTask, pending: PlanStep[]) =>
   `the task "${task.title}" still has steps not done in the plan pane: ` +
-  `${pending.map(step => `${step.id} ${step.title}`).join('; ')}. Finish them and tick them with the plan tool first.`
+  `${pending.map(stepLabel).join('; ')}. Finish them and tick them with the plan tool first.`
 
 const issueOf = (issue: number | null) => (issue === null ? '' : ` #${issue}`)
 
@@ -96,7 +103,7 @@ export const register: Register = on => {
     if (plan.current !== null && pending.length > 0) return { deny: closeRefusal(plan.current, pending) }
 
     return next(e)
-  }).catch(($, e, next) =>
+  }).catch((_$, e, next) =>
     next.called || !isClosing(e.command) ? next(e) : { deny: 'the close gate failed: the plan pane could not be read' },
   )
 
