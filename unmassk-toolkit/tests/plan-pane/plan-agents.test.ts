@@ -8,7 +8,7 @@ import {
   drawnRows,
   isDoneStep,
   endAgent,
-  minutes,
+  took,
   mountPane,
   rounds,
   rowIndex,
@@ -52,7 +52,7 @@ test('should_show_the_agent_result_and_time_when_it_ends', async ($, on) => {
   const agentRows = rowsUnder(rows, FIRST.title, SECOND.title).join('\n')
   expect(agentRows, `the answer's first line: ${JSON.stringify(rows)}`).toContain('GREEN — 12/12 tests pass')
   expect(agentRows, 'the rest of the answer stays out').not.toContain('report:')
-  expect(agentRows, 'the time it took').toMatch(minutes(2))
+  expect(agentRows, 'the time it took').toMatch(took('2m 00s'))
 })
 
 test('should_count_a_fix_round_when_an_agent_type_runs_again_in_the_step', async ($, on) => {
@@ -110,9 +110,9 @@ test('should_show_seconds_when_an_agent_took_under_a_minute', async ($, on) => {
   const rows = await drawnRows(await mountPane($, opens[0]!.id, 'desktop'))
   const quick = rows.find(row => row.includes('GREEN — quick'))
   const minute = rows.find(row => row.includes('CLEAN — one minute'))
-  expect(quick, `12 s, never 0 min: ${JSON.stringify(rows)}`).toMatch(/\b12 s\b/)
-  expect(quick, 'not rounded to minutes').not.toMatch(/min\b/)
-  expect(minute, 'a full minute in minutes').toMatch(minutes(1))
+  expect(quick, `12s, never 0m: ${JSON.stringify(rows)}`).toMatch(took('12s'))
+  expect(quick, 'not rounded to minutes').not.toMatch(/\d+m\b/)
+  expect(minute, 'a full minute in minutes').toMatch(took('1m 00s'))
 })
 
 const INTERRUPTED_ENDS = [

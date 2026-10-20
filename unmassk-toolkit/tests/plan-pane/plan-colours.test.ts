@@ -142,15 +142,15 @@ for (const surface of ['terminal', 'desktop'] as const) {
     const second = lastRun(RUNNING!.title)
     const clockTime = /\b\d{1,2}:\d{2}\b/
 
-    expect(first?.text.trim(), `2.1 took 16 min, at the row's end: ${JSON.stringify(rowOf(tree, DONE!.title).leaves)}`).toMatch(/(^|\s)16 min$/)
-    expect(second?.text.trim(), '2.2 took 45 s, from its own start, not the task start nor now').toMatch(/(^|\s)45 s$/)
+    expect(first?.text.trim(), `2.1 took 16m 00s, at the row's end: ${JSON.stringify(rowOf(tree, DONE!.title).leaves)}`).toMatch(/(^|\s)16m 00s$/)
+    expect(second?.text.trim(), '2.2 took 45s, from its own start, not the task start nor now').toMatch(/(^|\s)45s$/)
     expect([first?.paint.dim, second?.paint.dim], 'the durations dim').toEqual([true, true])
     expect(
       [DONE!.title, RUNNING!.title].filter(title => rowOf(tree, title).leaves.some(leaf => leaf.kind === 'text' && clockTime.test(leaf.text))),
       'no clock time (HH:MM) on a done step',
     ).toEqual([])
-    // D-162: the step in progress shows the time so far, 40 min since it started.
-    expect(lastRun(PENDING_STEP.title)?.text.trim(), `3.1 in progress for 40 min: ${JSON.stringify(rowOf(tree, PENDING_STEP.title).leaves)}`).toMatch(/(^|\s)40 min$/)
+    // D-162: the step in progress shows the time so far, 40m 00s since it started.
+    expect(lastRun(PENDING_STEP.title)?.text.trim(), `3.1 in progress for 40m 00s: ${JSON.stringify(rowOf(tree, PENDING_STEP.title).leaves)}`).toMatch(/(^|\s)40m 00s$/)
   })
 }
 

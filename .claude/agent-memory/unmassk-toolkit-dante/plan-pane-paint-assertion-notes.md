@@ -10,4 +10,5 @@ metadata:
 - Run: `claude plugin test unmassk-toolkit` (bun-style runner, ~1 s).
 - Live redraw (D-162): `ui.drawn()` on a mounted pane returns the cached frame; it re-renders only after a state change or a mod-requested redraw. `session.clock.advance` drives the mod's `$.clock.every/sleep/after` (mock.clock holds them); `ui.advance` does NOT move `clock.now`. So "ticks on its own" = keep one mount, advance the session clock, read drawn() twice.
 - Agents under a step leave the pane once that step is done: read an agent row before ticking its step.
+- Duration format (D-162: `45s` / `12m 05s` / `1h 12m`) is pinned in three places: kit `took(text)`, plan-durations `DURATION` regex, literal strings. The task row total uses the same formatter. To split format-RED from live-time-RED, run a scratch copy with only `formatDuration` swapped: what stays red is the live tick.
 - To probe the testing kit API: rsync the mod into the scratchpad, add a probe *.test.ts, run `claude plugin test .` from the copy's mod root (a file path is rejected).

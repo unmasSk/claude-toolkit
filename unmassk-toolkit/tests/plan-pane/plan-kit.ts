@@ -13,7 +13,9 @@ export const DONE_MARKS: readonly string[] = ['●', '✓', '✔']
 // A finished task folded to one line (D-153) may keep its tick.
 export const FOLDED_MARKS: readonly string[] = DONE_MARKS
 export const rounds = (n: number) => new RegExp(`↻\\s?${n}\\b`)
-export const minutes = (n: number) => new RegExp(`\\b${n} min\\b`)
+// Durations (owner's format, running and frozen alike): under a minute `45s`, under an
+// hour `12m 05s`, from an hour `1h 12m`. `took('12m 05s')` matches that text as a whole.
+export const took = (text: string) => new RegExp(`\\b${text}\\b`)
 
 const START = { cwd: '/work/project', surface: 'desktop', isInteractive: true } as const
 
