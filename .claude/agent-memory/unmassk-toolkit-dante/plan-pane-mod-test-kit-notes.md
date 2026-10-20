@@ -35,3 +35,6 @@ Mod tests (`*.test.ts`, kit `claude-code/testing`) for the #98 plan pane, in `un
 
 **Why:** first mod in the repo; kit docs live only in the plugin-authoring skill's types file (`declare module 'claude-code/testing'`).
 **How to apply:** phases 2-4 of #98 reuse the startSession helper pattern and the scratchpad empty-module trick.
+
+- Look tests (D-158): the kit never paints ("exercises hooks and modules, never a surface's paint"), so an ellipsis cut is tested as the step Text's `wrap` prop in the truncate family (found via `ui.findAll({ type: 'Text', text })`, which returns `props`), OR a self-cut row ending in '…' within bodyColumns. Glyph-agnostic bar reader: count row `n/m`, segments = non-space glyphs on that row or the row before; filled vs pending compared to each other, never to a fixed glyph.
+- Done-mark checks go through a kit helper (`isDoneStep`: first glyph in a set, counter row excluded) so a mark change touches one constant, not every test.

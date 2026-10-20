@@ -176,11 +176,10 @@ def main(argv):
     config_path = pm / "config.json"
     cfg = config.load(config_path)
 
-    if cfg.repo_type == repo_guard.PROTECTED_REPO_TYPE:
-        branch = repo_guard.current_branch(root)
-        if branch in repo_guard.MAIN_BRANCH_NAMES:
-            print(repo_guard.protected_branch_rejection(branch, config_path))
-            return 1
+    branch = repo_guard.protected_main_branch(root, cfg)
+    if branch is not None:
+        print(repo_guard.protected_branch_rejection(branch, config_path))
+        return 1
 
     marked_message = f"{_WIP_PREFIX} {_WIP_MARKER} {args.message}"
     # D-070 (`gitmem search --id D-070`): el marcador va aqui, NUNCA

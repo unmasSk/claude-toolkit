@@ -411,8 +411,8 @@ def _avisos_block(summary: BootSummary) -> list[str]:
 
     if report.install_uncommitted:
         lines.append(
-            "   ⚠️  the install left its changes uncommitted (protected branch):"
-            " commit them from a work branch"
+            "   ⚠️  la instalación dejó sus cambios sin commit (rama protegida):"
+            " commitéalos desde una rama de trabajo"
         )
         for path in report.install_uncommitted:
             lines.append(f"      - {path}")

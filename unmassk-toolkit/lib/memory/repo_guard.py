@@ -119,13 +119,19 @@ def protected_branch_rejection(branch, config_path=None):
     return text + detail
 
 
-def _branch_is_protected(root):
-    """R-015 in one place for a by-path caller: repo_type protected and the
-    current branch is the main one."""
-    cfg = config.load(notes.pm_root(root) / "config.json")
+def protected_main_branch(root, cfg):
+    """R-015 in one place: the current branch name when repo_type is
+    protected and that branch is the main one, else None."""
     if cfg.repo_type != PROTECTED_REPO_TYPE:
-        return False
-    return current_branch(root) in MAIN_BRANCH_NAMES
+        return None
+    branch = current_branch(root)
+    return branch if branch in MAIN_BRANCH_NAMES else None
+
+
+def _branch_is_protected(root):
+    """R-015 for a by-path caller that has no config loaded."""
+    cfg = config.load(notes.pm_root(root) / "config.json")
+    return protected_main_branch(root, cfg) is not None
 
 
 def install_left_uncommitted(root):

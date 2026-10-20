@@ -15,3 +15,7 @@ File: unmassk-toolkit/tests/memory/test_install_protected_branch_no_commit.py (2
 - "Not staged" test is green today only because the commit consumes the index: green-by-design guard.
 
 **How to apply:** any later D-157 fix pass or a change to where the installer commits.
+
+Fix pass (2026-10-20, Ultron's «Beyond the tests»):
+- Marker removal is only observable as a FALSE warning: protected install -> work branch -> `git-memory-install.py --auto` (apply_plan commits every run) -> owner edits .gitignore -> boot must carry no install line.
+- `git status` failing while the boot still runs: overwrite `.git/index` with garbage; status fails, log answers, boot completes.
