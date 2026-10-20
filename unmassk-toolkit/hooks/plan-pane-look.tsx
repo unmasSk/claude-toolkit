@@ -116,10 +116,10 @@ const Rounds = ({ Box, Text }: Ui, rounds: number) =>
   ) : null
 
 // What a row took, pushed to its right edge by the growing part before it; dim unless painted.
-const Took = ({ Box, Text }: Ui, took: string | null, paint: { color?: string } = {}) =>
+const Took = ({ Box, Text }: Ui, took: string | null, paint: { color?: string; weight?: 'bold' } = {}) =>
   took === null ? null : (
     <Box flexShrink={0}>
-      <Text dimColor={paint.color === undefined} {...paint}>{took}</Text>
+      <Text dimColor={paint.color === undefined && paint.weight === undefined} {...paint}>{took}</Text>
     </Box>
   )
 
@@ -155,7 +155,7 @@ const StepRow = (ui: Ui, step: PlanStep, now: number) => {
         {Rounds(ui, step.rounds)}
       </Box>
       {/* A done step's time takes its label's grey. */}
-      {Took(ui, tookOf(step, now), step.status === 'done' ? LABEL_PAINT.done : {})}
+      {Took(ui, tookOf(step, now), LABEL_PAINT[step.status])}
     </Box>
   )
 }
