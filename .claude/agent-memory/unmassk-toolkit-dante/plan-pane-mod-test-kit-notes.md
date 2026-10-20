@@ -15,5 +15,14 @@ Mod tests (`*.test.ts`, kit `claude-code/testing`) for the #98 plan pane, in `un
 - A plugin hook that throws is skipped and the chain goes on; the test does NOT fail. Error paths that only throw are invisible: assert on what was recorded beneath.
 - Pane id/title are not in the decisions (D-149..D-154): tests stay id-agnostic, mounting the id captured from ui.open.
 
+- A test file imports a sibling helper (`import ... from './plan-kit.ts'`); only `*.test.ts` run.
+- The test's `$` has NO `state` noun (`$.state.get` is undefined). Read the module's state by hooking `state.get` beneath it and calling `next(e)`: the answer wraps the read, `{ value: { value, version } }`.
+- In the module, `$.state.set(ref, value)` takes two arguments; `{...ref, value}` is refused "value is not JSON data".
+- Mounting the same requestId twice on one surface rejects: unmount first.
+- Any `$` op with no test bottom (e.g. `tool.register`) makes the plugin hook skip from that line on: an earlier test file without that bottom goes red if the module calls it before the act that file checks.
+- Agents: drive `$.agent.spawn({ ..., name })` (bottom answers `{ model, agentId }`) and `$.turn.complete({ agentId, answer, durationMs, isAborted, turnId, reason })`. `mock.clock(on)` in the shared start, since one `$.clock` call without it skips the hook.
+- Read the drawing as rows (outermost Text/Button text, descendants joined) and assert by document order; Text takes no `key`.
+- Prove the tests can go green on a scratchpad module before reporting RED: it caught three test bugs here.
+
 **Why:** first mod in the repo; kit docs live only in the plugin-authoring skill's types file (`declare module 'claude-code/testing'`).
 **How to apply:** phases 2-4 of #98 reuse the startSession helper pattern and the scratchpad empty-module trick.
