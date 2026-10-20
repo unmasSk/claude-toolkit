@@ -129,3 +129,4 @@
 [D-164][memory][architecture] every type may answer an overlap with --replaces none; ids only D, M, R
 [D-165][hooks][design] usage mod: two bars, session and week, cut down from an MIT mod
 [D-166][hooks][design] usage mod base: MoonZhe/usage-band, cut to two bars, percent only
+[D-167][hooks][design] usage bars live under the plan in the side pane, not above the prompt
