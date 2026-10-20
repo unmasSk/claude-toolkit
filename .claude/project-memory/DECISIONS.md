@@ -126,3 +126,4 @@
 [D-161][hooks][skills] plan pane right column shows duration; steps carry their number
 [D-162][hooks][skills] the running step and running agents show a live ticking time
 [D-163][hooks][skills] the pane gate counts only steps before the one in progress
+[D-164][memory][architecture] every type may answer an overlap with --replaces none; ids only D, M, R
