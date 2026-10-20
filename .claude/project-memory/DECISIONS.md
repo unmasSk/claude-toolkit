@@ -119,3 +119,4 @@
 [D-152][hooks][skills] work with no issue shows in the pane as a plain task titled by the request
 [D-153][hooks][skills] a finished task stays in the pane until the next starts, then folds to one line
 [D-154][hooks][skills] build the plan pane first, then the gate reading it
+[D-155][hooks][skills] the plan-pane mod is built with the Short procedure
