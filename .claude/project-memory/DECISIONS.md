@@ -123,4 +123,4 @@
 [D-156][hooks][skills] the gate stops closing work while the pane has steps unticked
 [D-157][install][memory] the installer does not commit on a protected branch; the boot says so
 [D-158][hooks][skills] the plan pane copies the Checklist mod's look Bex sent
-[D-160][hooks][skills] plan pane follows the GIF: green done, orange in progress, grey pending
+[D-161][hooks][skills] plan pane right column shows duration; steps carry their number
