@@ -148,3 +148,4 @@
 [X-148][hooks][skills] build pane and gate together
 [X-149][hooks][skills] Full procedure for the pane
 [X-150][hooks][skills] block at every turn end, as today
+[X-151][hooks][skills] a file the mod writes for the Python gate to read
