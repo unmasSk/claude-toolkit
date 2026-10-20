@@ -130,3 +130,4 @@
 [D-165][hooks][design] usage mod: two bars, session and week, cut down from an MIT mod
 [D-167][hooks][design] usage bars live under the plan in the side pane, not above the prompt
 [D-168][hooks][design] the Sesión bar shows this session's context used, not the 5-hour limit
+[D-169][hooks][design] usage bars drawn as an instrument of 40 fine marks in the pane's colours
