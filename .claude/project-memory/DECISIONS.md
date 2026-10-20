@@ -122,3 +122,4 @@
 [D-155][hooks][skills] the plan-pane mod is built with the Short procedure
 [D-156][hooks][skills] the gate stops closing work while the pane has steps unticked
 [D-157][install][memory] the installer does not commit on a protected branch; the boot says so
+[D-158][hooks][skills] the plan pane copies the Checklist mod's look Bex sent
