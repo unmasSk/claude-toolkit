@@ -83,3 +83,4 @@
 2026-10-19  [I-008][memory][architecture] 🔥 gitmem remove archived every note sharing a duplicated ID, silently  →  closed: fixed in #105: remove refuses a repeated id and --commit picks one; boot alarms live repeats
 2026-10-19  [I-010][ci][release] 🔥 1.51.0 Windows CI cancelled at the 20-minute job cap  →  closed: 1.51.1 CI green on Ubuntu and Windows (run 39338551844, Windows 20 min 53 s under the new 40 min cap); installed
 2026-10-20  [D-146][hooks][skills] 🧭 checklist gate also reads the desktop app's task list (R.1)  →  replaced by D-149
+2026-10-20  [D-159][hooks][skills] 🧭 plan pane colours: green done, blue in progress, amber findings, red failed  →  replaced by D-160
