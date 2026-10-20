@@ -1,7 +1,7 @@
 import { update } from 'claude-code'
 import type { Register, StateDollar } from 'claude-code'
 
-import { EMPTY_PLAN, addAgent, applyStatus, applyTask, endAgent, formatDuration } from './plan-pane-model.ts'
+import { EMPTY_PLAN, addAgent, applyStatus, applyTask, endAgent, formatDuration, pendingSteps } from './plan-pane-model.ts'
 import type { Change } from './plan-pane-model.ts'
 import type { Plan, PlanAgent, PlanStep, PlanTask } from './plan-pane-state'
 
@@ -41,6 +41,16 @@ const change = async ($: StateDollar, apply: (plan: Plan) => Change): Promise<st
   return error
 }
 
+// Commands that call the work done (D-156); a release dry run closes nothing.
+const isClosing = (command: string) =>
+  /\bgh\s+issue\s+close\b/.test(command) ||
+  /\bgitmem\s+next\b/.test(command) ||
+  (/\bbin\/release\.py\b/.test(command) && !/--dry-run\b/.test(command))
+
+const closeRefusal = (task: PlanTask, pending: PlanStep[]) =>
+  `the task "${task.title}" still has steps not done in the plan pane: ` +
+  `${pending.map(step => `${step.id} ${step.title}`).join('; ')}. Finish them and tick them with the plan tool first.`
+
 const issueOf = (issue: number | null) => (issue === null ? '' : ` #${issue}`)
 
 const taskRow = (task: PlanTask) =>
@@ -77,6 +87,18 @@ export const register: Register = on => {
 
     return { result: isTask ? 'The task is in the plan pane.' : `Step ${String(input.step)} is ${String(input.status)}.` }
   }).catch(() => ({ deny: 'the plan tool failed: the pane was not updated' }))
+
+  // A failed check never lets a closing command through unjudged; any other command passes.
+  on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+    if (!isClosing(e.command)) return next(e)
+    const { value: plan = EMPTY_PLAN } = await $.state.get(PLAN)
+    const pending = pendingSteps(plan)
+    if (plan.current !== null && pending.length > 0) return { deny: closeRefusal(plan.current, pending) }
+
+    return next(e)
+  }).catch(($, e, next) =>
+    next.called || !isClosing(e.command) ? next(e) : { deny: 'the close gate failed: the plan pane could not be read' },
+  )
 
   // The engine may drop the spec's isDeferred; this answer is read ahead of it.
   on('tool.describe', { tool: 'mcp__unmassk-toolkit__plan' }, async ($, e, next) => ({

@@ -27,6 +27,9 @@ const isIssue = (value: unknown): value is number | null =>
 
 const stepsOf = (task: PlanTask): PlanStep[] => task.phases.flatMap(phase => phase.steps)
 
+export const pendingSteps = (plan: Plan): PlanStep[] =>
+  plan.current === null ? [] : stepsOf(plan.current).filter(step => step.status !== 'done')
+
 const readSteps = (raw: unknown, where: string): PlanStep[] | string => {
   if (!Array.isArray(raw) || raw.length === 0) return `${where} has no steps`
   const steps: PlanStep[] = []
