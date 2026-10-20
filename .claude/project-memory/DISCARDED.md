@@ -144,3 +144,4 @@
 [X-144][hooks][skills] a mod reading the app's update_plan list
 [X-145][hooks][skills] a plan only for flow tasks
 [X-146][hooks][skills] group by stage (prepare, build, review)
+[X-147][hooks][skills] keep every agent visible under every step plus a tally table
