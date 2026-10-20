@@ -1,6 +1,6 @@
 // #98 D-160/D-161: the pane in the colours of the Checklist mod's GIF. Done: a green disc
-// with a tick, the label dim and how long the step took at the row's end; in progress: an orange
-// ring with a dot, the label bold; pending: a grey empty ring. The bar: green done,
+// with a tick, the label in the reference's grey #5c5b56 (not dim) and how long the step took at the row's end; in progress: an orange
+// ring with a dot, the label weight 'bold' (not `bold: true`, which draws semibold); pending: a grey empty ring. The bar: green done,
 // orange in progress, grey the rest, the count dim at its right. Agents (D-159, kept):
 // amber for a fix round, red for an agent that failed or was interrupted.
 // Run: claude plugin test unmassk-toolkit
@@ -102,14 +102,24 @@ test('should_draw_a_pending_step_on_the_desktop_as_a_grey_empty_ring', async ($,
 })
 
 for (const surface of ['terminal', 'desktop'] as const) {
-  test(`should_draw_the_running_label_bold_and_the_done_label_dim_on_the_${surface}`, async ($, on) => {
+  // Owner correction: `bold: true` draws semibold and reads as not bold; the Text prop weight 'bold' is required.
+  test(`should_draw_the_running_label_with_weight_bold_on_the_${surface}`, async ($, on) => {
+    const { opens } = await withOneOfEach($, on)
+    const tree = await drawn($, opens[0]!.id, surface)
+    const leaves = rowOf(tree, RUNNING!.title).leaves
+
+    expect(paintAt(leaves, RUNNING!.title), `the running label: ${JSON.stringify(leaves)}`).toMatchObject({ weight: 'bold', dim: false })
+  })
+
+  // Owner correction: an explicit #5c5b56, a shade darker than the dim text; dim on top would darken it further.
+  test(`should_draw_the_done_label_in_the_reference_grey_and_the_pending_label_plain_on_the_${surface}`, async ($, on) => {
     const { opens } = await withOneOfEach($, on)
     const tree = await drawn($, opens[0]!.id, surface)
     const labelOf = (title: string) => paintAt(rowOf(tree, title).leaves, title)
 
-    expect(labelOf(RUNNING!.title), `the running label: ${JSON.stringify(rowOf(tree, RUNNING!.title).leaves)}`).toMatchObject({ bold: true, dim: false })
-    expect(labelOf(DONE!.title), 'the done label').toMatchObject({ bold: false, dim: true })
+    expect(labelOf(DONE!.title), `the done label: ${JSON.stringify(rowOf(tree, DONE!.title).leaves)}`).toMatchObject({ bold: false, color: GREY, dim: false })
     expect(labelOf(PENDING_STEP.title), 'the pending label').toMatchObject({ bold: false, dim: false })
+    expect([labelOf(DONE!.title)?.weight, labelOf(PENDING_STEP.title)?.weight], 'neither weight bold').not.toContain('bold')
   })
 
   // D-161: the duration runs from the step's start (in_progress) to its tick; written by hand.
@@ -139,7 +149,8 @@ for (const surface of ['terminal', 'desktop'] as const) {
       [DONE!.title, RUNNING!.title].filter(title => rowOf(tree, title).leaves.some(leaf => leaf.kind === 'text' && clockTime.test(leaf.text))),
       'no clock time (HH:MM) on a done step',
     ).toEqual([])
-    expect(rowOf(tree, PENDING_STEP.title).leaves.some(leaf => leaf.kind === 'text' && /\b\d+ (s|min)\b/.test(leaf.text)), 'no duration on the step in progress').toBe(false)
+    // D-162: the step in progress shows the time so far, 40 min since it started.
+    expect(lastRun(PENDING_STEP.title)?.text.trim(), `3.1 in progress for 40 min: ${JSON.stringify(rowOf(tree, PENDING_STEP.title).leaves)}`).toMatch(/(^|\s)40 min$/)
   })
 }
 

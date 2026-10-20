@@ -98,3 +98,4 @@
 - [plan-pane-mod-test-kit-notes.md](plan-pane-mod-test-kit-notes.md) — #98 mod tests: unaliased claude plugin test, bottom-hook answers, skipped hooks invisible
 - [duplicate-id-remove-contract-notes.md](duplicate-id-remove-contract-notes.md) — #105 D-145 duplicate id, sha-prefix collision, pasted relaunches; D-147 boot alert over twin readers
 - [install-protected-branch-d157-contract-notes.md](install-protected-branch-d157-contract-notes.md) — D-157 installer no-commit on gitflow main: two doors, stale-manifest upgrade trap
+- [plan-pane-paint-assertion-notes.md](plan-pane-paint-assertion-notes.md) — plan pane label paint: weight vs bold, paintAt pattern

@@ -151,11 +151,12 @@ const lineOf = (node: any) => (node.type === 'Line' ? node.text : rowTextOf(node
 
 export const rowsOf = (tree: any): string[] => rowNodesOf(tree).map(lineOf)
 
-export type Paint = { color: string | undefined; bold: boolean; dim: boolean }
+// weight: the Text prop as written (inherited), never derived from `bold`: `bold: true` alone draws semibold.
+export type Paint = { color: string | undefined; bold: boolean; weight: string | undefined; dim: boolean }
 export type Leaf = { kind: 'text'; text: string; paint: Paint } | { kind: 'svg'; props: Record<string, any> }
 
 // What a row is made of, in order: each run of text with the paint it inherits, and each Svg.
-export const leavesOf = (node: any, paint: Paint = { color: undefined, bold: false, dim: false }): Leaf[] => {
+export const leavesOf = (node: any, paint: Paint = { color: undefined, bold: false, weight: undefined, dim: false }): Leaf[] => {
   if (node === null || node === undefined || node === false) return []
   if (typeof node === 'string' || typeof node === 'number') return [{ kind: 'text', text: String(node), paint }]
   if (Array.isArray(node)) return node.flatMap(kid => leavesOf(kid, paint))
@@ -166,6 +167,7 @@ export const leavesOf = (node: any, paint: Paint = { color: undefined, bold: fal
       ? {
           color: typeof props.color === 'string' ? props.color : paint.color,
           bold: props.bold === true || ['bold', 'semibold'].includes(props.weight) || (props.bold === undefined && paint.bold),
+          weight: typeof props.weight === 'string' ? props.weight : paint.weight,
           dim: props.dimColor === true || (props.dimColor === undefined && paint.dim),
         }
       : paint

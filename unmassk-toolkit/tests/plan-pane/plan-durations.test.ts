@@ -1,6 +1,8 @@
 // #98 D-161: the right column shows how long a thing took, right-aligned: a done step its
 // duration (start to tick), an agent under the step in progress its own. A long step title
 // is cut, never the right column nor the ↻N round mark. Durations are written by hand.
+// D-162: the step in progress and every running agent show, right-aligned, the time so far,
+// ticking each second on the mod's clock with the pane left mounted; on ending it freezes.
 // Run: claude plugin test unmassk-toolkit
 import { test, expect } from 'claude-code/testing'
 import {
@@ -66,6 +68,13 @@ const rightColumnOf = (row: any) => {
 
 const durationsIn = (row: any) => (rowsOf(row)[0] ?? '').match(DURATION) ?? []
 
+// The right column of the row holding `text` in a pane that stays mounted: a value that
+// changes between two reads proves the pane redrew on its own, with no state change.
+const rightTextOf = async (ui: any, text: string | RegExp) => {
+  const row = rowOf(await ui.drawn(), text).node
+  return { right: rightColumnOf(row)?.text, row: JSON.stringify(row) }
+}
+
 // 2.1 runs 16 min with ultron (2 min) under it until 2.2 starts, which then has cerberus (12 s).
 const withStepDoneAndAgentsRunning = async ($: any, on: any) => {
   const session = await startSession($, on, new Date(2026, 9, 20, 14, 3).getTime())
@@ -97,13 +106,85 @@ for (const surface of SURFACES) {
     expect([durationsIn(ultron), durationsIn(cerberus)], 'each duration drawn once, not also inline').toEqual([['2 min'], ['12 s']])
   })
 
-  test(`should_show_no_duration_on_an_agent_still_running_on_the_${surface}`, async ($, on) => {
+  test(`should_show_the_running_agent_time_so_far_right_aligned_on_the_${surface}`, async ($, on) => {
     const { opens } = await withStepDoneAndAgentsRunning($, on)
     const tree = await drawn($, opens[0]!.id, surface)
     const argus = rowOf(tree, /argus/i).node
 
+    // argus was spawned, then 5 min passed on the mod's clock.
     expect(rowsOf(argus)[0], `argus says running: ${JSON.stringify(argus)}`).toMatch(/running/)
-    expect(durationsIn(argus), 'no duration while it runs').toEqual([])
+    expect(rightColumnOf(argus)?.text, `argus's 5 min so far, right-aligned: ${JSON.stringify(argus)}`).toBe('5 min')
+    expect(durationsIn(argus), 'drawn once, not also inline').toEqual(['5 min'])
+  })
+
+  test(`should_tick_the_step_in_progress_each_second_and_redraw_the_mounted_pane_on_the_${surface}`, async ($, on) => {
+    const { opens, clock } = await startSession($, on)
+    await callPlan($, { task: ISSUE_TASK })
+    await callPlan($, { step: FIRST!.id, status: 'in_progress' })
+    const ui = await mountPane($, opens[0]!.id, surface)
+    const seen: (string | undefined)[] = []
+    let last = ''
+    try {
+      for (const ms of [5_000, 1_000, 1_000, 1_000]) {
+        await clock.advance(ms)
+        const { right, row } = await rightTextOf(ui, FIRST!.title)
+        seen.push(right)
+        last = row
+      }
+    } finally {
+      await ui.unmount()
+    }
+
+    expect(seen, `5 s, then one more each second, with no call in between: ${last}`).toEqual(['5 s', '6 s', '7 s', '8 s'])
+  })
+
+  test(`should_tick_a_running_agent_each_second_and_redraw_the_mounted_pane_on_the_${surface}`, async ($, on) => {
+    const { opens, clock } = await startSession($, on)
+    await callPlan($, { task: ISSUE_TASK })
+    await callPlan($, { step: FIRST!.id, status: 'in_progress' })
+    await clock.advance(30_000)
+    await spawnAgent($, 'a1', ULTRON)
+    const ui = await mountPane($, opens[0]!.id, surface)
+    const seen: (string | undefined)[] = []
+    let last = ''
+    try {
+      for (const ms of [7_000, 1_000, 1_000]) {
+        await clock.advance(ms)
+        const { right, row } = await rightTextOf(ui, /ultron/i)
+        seen.push(right)
+        last = row
+      }
+    } finally {
+      await ui.unmount()
+    }
+
+    expect(seen, `from its own spawn, not the step's start: 7 s, 8 s, 9 s: ${last}`).toEqual(['7 s', '8 s', '9 s'])
+  })
+
+  test(`should_freeze_the_time_of_a_step_and_an_agent_once_they_end_on_the_${surface}`, async ($, on) => {
+    const { opens, clock } = await startSession($, on)
+    await callPlan($, { task: ISSUE_TASK })
+    await callPlan($, { step: FIRST!.id, status: 'in_progress' })
+    await spawnAgent($, 'a1', ULTRON)
+    const ui = await mountPane($, opens[0]!.id, surface)
+    const right = async (text: string | RegExp) => (await rightTextOf(ui, text)).right
+    const seen: Record<string, string | undefined> = {}
+    try {
+      await clock.advance(3_000)
+      await endAgent($, 'a1', 'GREEN — ok', 3_000)
+      seen.agentEnded = await right(/ultron/i)
+      await clock.advance(3_000)
+      // Read while the step still runs: agents leave the pane once their step is done.
+      seen.agentLater = await right(/ultron/i)
+      await callPlan($, { step: FIRST!.id, status: 'done' })
+      seen.stepEnded = await right(FIRST!.title)
+      await clock.advance(4_000)
+      seen.stepLater = await right(FIRST!.title)
+    } finally {
+      await ui.unmount()
+    }
+
+    expect(seen, 'the agent stays at the 3 s it took, the step at its 6 s').toEqual({ agentEnded: '3 s', agentLater: '3 s', stepEnded: '6 s', stepLater: '6 s' })
   })
 
   test(`should_keep_the_round_mark_and_the_duration_whole_when_a_long_done_title_is_cut_on_the_${surface}`, async ($, on) => {
@@ -163,7 +244,7 @@ for (const surface of SURFACES) {
     await callPlan($, { step: FIRST!.id, status: 'done' })
     const ticked = durationsIn(rowOf(await drawn($, opens[0]!.id, surface), FIRST!.title).node)
 
-    expect(reopened, 'no duration while it is reopened').toEqual([])
+    expect(reopened, 'one live time while it is reopened (D-162)').toHaveLength(1)
     expect(ticked, 'one duration once ticked again').toHaveLength(1)
     expect(ticked, 'never the stale 16 min of the first tick').not.toEqual(['16 min'])
   })
