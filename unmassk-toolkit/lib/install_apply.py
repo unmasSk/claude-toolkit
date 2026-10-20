@@ -36,7 +36,7 @@ import tempfile
 from datetime import datetime
 from typing import Any
 
-from git_helpers import claude_md_lock_path, ensure_gitignore, file_lock, open_no_follow_symlink, verify_path_within_project
+from git_helpers import claude_md_lock_path, ensure_gitignore, ensure_runtime_dir, file_lock, open_no_follow_symlink, verify_path_within_project
 from managed_blocks import BLOCKS, upsert_managed_blocks
 from version import VERSION
 
@@ -96,7 +96,7 @@ def apply_plan(plan: dict[str, Any], source: str, target: str) -> list[str]:
             errors.append(f"{action}: {e}")
 
     if not errors:
-        _commit_what_the_install_created(target)
+        _commit_what_the_install_created(target, source)
 
     return errors
 
@@ -127,8 +127,30 @@ _INSTALL_CREATES = (
 )
 
 
-def _commit_what_the_install_created(target: str) -> None:
+# Seam with lib/memory/repo_guard.py (reader, `install_left_uncommitted`):
+# the install files left uncommitted on a protected branch, one per line.
+_UNCOMMITTED_MARKER = "install-uncommitted.txt"
+
+
+def _branch_is_protected(target: str, source: str) -> bool:
+    """R-015, asked of lib/memory/repo_guard.py by path: this module may not
+    import lib/memory/. Any failure counts as protected (fail-closed, R-015)."""
+    guard = os.path.join(source, "lib", "memory", "repo_guard.py")
+    try:
+        done = subprocess.run(
+            [sys.executable, guard], cwd=target, capture_output=True, text=True,
+            timeout=15, encoding="utf-8", errors="replace",
+        )
+    except Exception:
+        return True
+    return not (done.returncode == 0 and (done.stdout or "").strip() == "open")
+
+
+def _commit_what_the_install_created(target: str, source: str) -> None:
     """Commit what the install has just created.
+
+    On a protected branch (D-157) nothing is staged or committed: the files
+    stay in the working tree and the marker lists them for the boot report.
 
     Without this, a freshly installed project ends the day with TEN
     uncommitted files [measured 2026-08-06, full-day simulation]. Three
@@ -161,6 +183,13 @@ def _commit_what_the_install_created(target: str) -> None:
     if not existing:
         return
     try:
+        marker = os.path.join(ensure_runtime_dir(target), _UNCOMMITTED_MARKER)
+        if _branch_is_protected(target, source):
+            with open(marker, "w", encoding="utf-8") as fh:
+                fh.write("".join(rel + "\n" for rel in existing))
+            return
+        if os.path.isfile(marker):
+            os.remove(marker)
         # encoding="utf-8", errors="replace" in the three subprocess.run
         # calls below: without `encoding=`, `text=True` decodes with the
         # console codec -- cp1252 on Windows -- and git output with a

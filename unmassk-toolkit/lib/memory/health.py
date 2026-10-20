@@ -19,6 +19,7 @@ import indexes
 import notes
 import notes_duplicate
 import query
+import repo_guard
 import rules
 import zones
 from health_plans import issues_checked, plans_unreflected
@@ -283,4 +284,5 @@ def build() -> HealthReport:
         rule_file_lines=rule_file_lines,
         rule_discrepancies=rule_discrepancies,
         rule_discrepancies_error=rule_discrepancies_error,
+        install_uncommitted=repo_guard.install_left_uncommitted(root),
     )

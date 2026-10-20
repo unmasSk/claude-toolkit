@@ -31,7 +31,11 @@ proteccion de rama", que es otro control, gobernado por
 repetir la resolucion de `pm_root`/`config.load` en cada llamador.
 """
 
+from pathlib import Path
+
+import config
 import gitcmd
+import notes
 
 # repo_type protegido -- mismo valor que el default fail-closed de
 # config.Config [config.py::Config.repo_type docstring: "main protegido
@@ -41,6 +45,10 @@ PROTECTED_REPO_TYPE = "gitflow"
 # Nombres de rama que cuentan como "la rama principal" -- ver docstring
 # del modulo: sin remoto del que preguntar, lista fija.
 MAIN_BRANCH_NAMES = frozenset({"main", "master"})
+
+# Seam with lib/install_apply.py (writer): the install files it left
+# uncommitted on a protected branch (D-157), one path per line.
+_INSTALL_UNCOMMITTED_MARKER = (".claude", ".unmassk", "install-uncommitted.txt")
 
 
 def current_branch(root):
@@ -109,3 +117,37 @@ def protected_branch_rejection(branch, config_path=None):
             "  {\"repo_type\": \"trunk\"}"
         )
     return text + detail
+
+
+def _branch_is_protected(root):
+    """R-015 in one place for a by-path caller: repo_type protected and the
+    current branch is the main one."""
+    cfg = config.load(notes.pm_root(root) / "config.json")
+    if cfg.repo_type != PROTECTED_REPO_TYPE:
+        return False
+    return current_branch(root) in MAIN_BRANCH_NAMES
+
+
+def install_left_uncommitted(root):
+    """Files the install left uncommitted on a protected branch that still
+    carry changes. A failed `git status` lists them all: warn, never hide."""
+    try:
+        text = Path(root, *_INSTALL_UNCOMMITTED_MARKER).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return ()
+    listed = [line for line in text.splitlines() if line.strip()]
+    if not listed:
+        return ()
+    result = gitcmd.run(
+        ["status", "--porcelain", "--untracked-files=all", "--", *listed],
+        cwd=root, timeout=gitcmd.GIT_TIMEOUT,
+    )
+    if result.returncode != 0:
+        return tuple(listed)
+    return tuple(line[3:] for line in result.stdout.splitlines() if line.strip())
+
+
+if __name__ == "__main__":
+    # By-path entry for lib/install_apply.py, which may not import
+    # lib/memory/ (tests/memory/test_boundary.py).
+    print("protected" if _branch_is_protected(notes.repo_root()) else "open")

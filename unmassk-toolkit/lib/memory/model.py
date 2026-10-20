@@ -275,6 +275,8 @@ class HealthReport:
     issue_states: tuple[tuple[int, str, str], ...] = ()
     # issues citadas que esa consulta no devolvio (borrada, transferida, PR)
     issues_unanswered: tuple[int, ...] = ()
+    # install files left uncommitted on a protected branch (D-157)
+    install_uncommitted: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

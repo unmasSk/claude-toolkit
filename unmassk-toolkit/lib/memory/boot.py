@@ -409,6 +409,14 @@ def _avisos_block(summary: BootSummary) -> list[str]:
         for text in report.memory_setup_missing:
             lines.append(f"      - {text}")
 
+    if report.install_uncommitted:
+        lines.append(
+            "   ⚠️  the install left its changes uncommitted (protected branch):"
+            " commit them from a work branch"
+        )
+        for path in report.install_uncommitted:
+            lines.append(f"      - {path}")
+
     if report.plans_unreflected_error is not None:
         lines.append(
             "   ⚠️  no se pudo comprobar si hay planes sin reflejar: "
