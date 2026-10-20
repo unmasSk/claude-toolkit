@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.55.0] - 2026-10-20
+
 ### Added
 
 - **Usage band above the prompt** (D-165, D-166): a mod shipped with `unmassk-toolkit` draws two bars, the session (5 h) and the week (7 d), percent only, coloured green, yellow or red by level; cut down from MoonZhe/usage-band (MIT, credited in `unmassk-toolkit/hooks/NOTICE`) and registered from the plan pane's module because `hooks.json` takes one module per plugin.
