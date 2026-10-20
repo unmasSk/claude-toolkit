@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Usage bar «Sesión» shows this session's context used, not the 5-hour limit** (D-168, replaces the 5-hour bar of D-166): «Semana» stays the weekly limit, and only the week is kept for the next session.
+
 ## [1.55.1] - 2026-10-20
 
 ### Changed
