@@ -145,7 +145,7 @@ export const register: Register = on => {
     return (
       <ui.Box flexDirection="column">
         {drawPane(surface, plan, e.props.bodyColumns, now)}
-        {drawUsage(surface, usage, usageNow)}
+        {drawUsage(surface, usage, usageNow, e.props.bodyColumns)}
       </ui.Box>
     )
   })

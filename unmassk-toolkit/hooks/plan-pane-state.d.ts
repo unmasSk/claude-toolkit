@@ -40,7 +40,11 @@ export type Plan = { current: PlanTask | null; finished: FoldedTask[] }
 export type UsageWindow = { percentUsed: number; resetsAt: string | null }
 
 // context: this session's context used, in percent (D-168).
-export type UsageReading = { context: number | null; sevenDay: UsageWindow | null }
+export type UsageReading = {
+  context: number | null
+  tokens?: { used: number; window: number } | null
+  sevenDay: UsageWindow | null
+}
 
 declare module 'claude-code' {
   interface PluginState {
