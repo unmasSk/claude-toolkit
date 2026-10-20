@@ -117,3 +117,4 @@
 [D-150][hooks][skills] the side pane shows the whole task (issue) plus each agent's work and tally
 [D-151][hooks][skills] pane layout: task, phases, steps; agents only under the step in progress
 [D-152][hooks][skills] work with no issue shows in the pane as a plain task titled by the request
+[D-153][hooks][skills] a finished task stays in the pane until the next starts, then folds to one line
