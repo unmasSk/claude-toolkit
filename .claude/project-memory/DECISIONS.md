@@ -124,3 +124,4 @@
 [D-157][install][memory] the installer does not commit on a protected branch; the boot says so
 [D-158][hooks][skills] the plan pane copies the Checklist mod's look Bex sent
 [D-161][hooks][skills] plan pane right column shows duration; steps carry their number
+[D-162][hooks][skills] the running step and running agents show a live ticking time
