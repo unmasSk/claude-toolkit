@@ -56,6 +56,7 @@ import shlex
 
 from model import Note, Rejection
 import rejection as rejection_
+from vocabulary import TYPES
 
 # La FORMA de un identificador de nota real: LETRA-NUMERO (ej. "D-030"),
 # nunca un hash de commit v1 (ej. "4f2a1bc") citado en `origin` para una
@@ -188,3 +189,16 @@ def carry_answer_flags(note: Note, *, skip: frozenset[str] = frozenset()) -> str
     if "--keys" not in skip and note.keys:
         parts.append(f" --keys {shlex.join(note.keys)}")
     return "".join(parts)
+
+
+def carry_accepted_flags(note: Note) -> str:
+    """``carry_answer_flags`` plus ``--why``, limited to the fields
+    ``note.type`` accepts [D-164]; ``--replaces none`` fits every type."""
+    spec = TYPES.get(note.type)
+    allowed = spec.allowed_fields if spec is not None else frozenset()
+    skip = {f"--{field}" for field in ("origin", "awaits", "keys") if field not in allowed}
+    if "replaces" not in allowed and note.replaces != "none":
+        skip.add("--replaces")
+    has_why = "why" in allowed and note.why is not None and note.why.strip()
+    why = f" --why {shlex.quote(note.why)}" if has_why else ""
+    return carry_answer_flags(note, skip=frozenset(skip)) + why

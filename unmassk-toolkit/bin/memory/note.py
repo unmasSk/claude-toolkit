@@ -217,10 +217,13 @@ def _print_success_with_discards(decision_result, alternatives, discard_results,
 
 def _carry_cli_flags(one_rejection, args):
     """Los relanzamientos `gitmem note` arrastran `--promotes`, `--discard` y
-    el `--work` de una Q/I, que no son campos de `Note` y el rechazo no conoce."""
+    las respuestas de la aduana de issues (`--issue`, `--quote`, `--work`),
+    que el rechazo no conoce."""
     promotes = f" --promotes {shlex.quote(args.promotes)}" if args.promotes is not None else ""
     discards = "".join(f" --discard {shlex.join(pair)}" for pair in args.discard or ())
     work = f" --work {args.work}" if args.work is not None else ""
+    issue = f" --issue {args.issue}" if args.issue is not None else ""
+    quote = f" --quote {shlex.quote(args.quote)}" if args.quote is not None else ""
 
     def carried(command):
         if not command.startswith("gitmem note "):
@@ -229,9 +232,14 @@ def _carry_cli_flags(one_rejection, args):
             command += promotes
         if "--discard" not in command:
             command += discards
-        # `--work` solo vale en Q/I: no se arrastra a un relanzamiento de otro tipo.
-        if "--work" not in command and command.split()[2:3] in (["Q"], ["I"]):
+        # `--work`, `--issue none` and `--quote` only fit Q/I; `--issue` and `--work` exclude each other.
+        gate_type = command.split()[2:3] in (["Q"], ["I"])
+        if "--issue" not in command and "--work" not in command and (gate_type or args.issue != "none"):
+            command += issue
+        if "--work" not in command and "--issue" not in command and gate_type:
             command += work
+        if "--quote" not in command and gate_type:
+            command += quote
         return command
 
     return dataclasses.replace(one_rejection, relaunch=tuple(map(carried, one_rejection.relaunch)))
