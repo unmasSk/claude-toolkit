@@ -34,6 +34,7 @@ Checked against the tree on 2026-10-16. If one stops being true, delete the line
 - A throwaway HOME logs gh out: any test reaching real gh gets an auth error, not the network answer.
 - `gitmem search --file <path>` can't find notes about a source file (notes never touch it). Search by the file's name as a word.
 - A reviewer's "code-only" line count may leave out blank lines: check the floor with every docstring and comment removed before promising a file can reach 300 by cutting docstrings.
+- `--replaces none` stays the literal string "none" in `Note.replaces` (the overlap gate skips on non-None) and is persisted as `Replaces: none`: never normalise it to None before validation.
 - `managed_blocks.py` BLOCKS[0]: the short restore body is intended; the longer one in git history is not the right one.
 
 ## Mods (plan-pane)

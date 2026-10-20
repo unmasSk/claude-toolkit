@@ -216,10 +216,11 @@ def _print_success_with_discards(decision_result, alternatives, discard_results,
 
 
 def _carry_cli_flags(one_rejection, args):
-    """Los relanzamientos `gitmem note` arrastran `--promotes` y `--discard`,
-    que no son campos de `Note` y el rechazo no conoce."""
+    """Los relanzamientos `gitmem note` arrastran `--promotes`, `--discard` y
+    el `--work` de una Q/I, que no son campos de `Note` y el rechazo no conoce."""
     promotes = f" --promotes {shlex.quote(args.promotes)}" if args.promotes is not None else ""
     discards = "".join(f" --discard {shlex.join(pair)}" for pair in args.discard or ())
+    work = f" --work {args.work}" if args.work is not None else ""
 
     def carried(command):
         if not command.startswith("gitmem note "):
@@ -228,6 +229,9 @@ def _carry_cli_flags(one_rejection, args):
             command += promotes
         if "--discard" not in command:
             command += discards
+        # `--work` solo vale en Q/I: no se arrastra a un relanzamiento de otro tipo.
+        if "--work" not in command and command.split()[2:3] in (["Q"], ["I"]):
+            command += work
         return command
 
     return dataclasses.replace(one_rejection, relaunch=tuple(map(carried, one_rejection.relaunch)))

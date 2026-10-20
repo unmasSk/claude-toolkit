@@ -312,7 +312,7 @@ def _present_fields(note: Note) -> frozenset[str]:
         present.add("keys")
     if note.origin:
         present.add("origin")
-    if note.replaces is not None:
+    if note.replaces is not None and note.replaces != "none":  # none = coexist, any type [D-164]
         present.add("replaces")
     if note.awaits is not None and note.awaits.strip():
         present.add("awaits")
@@ -429,11 +429,15 @@ def validate_replacement(
         if candidate.why:
             options.append(f"          Why: {candidate.why}")
         options.append("")
+    # Solo las salidas y campos que el tipo admite [D-164].
+    type_spec = TYPES.get(note.type)
+    allowed = type_spec.allowed_fields if type_spec is not None else frozenset()
+    by_id = "replaces" in allowed
     options.extend(
         [
-            "Tres salidas, y solo tres:",
+            "Tres salidas, y solo tres:" if by_id else "Dos salidas, y solo dos:",
             "",
-            "  la sustituye   --replaces <id>       la vieja sale del indice a ARCHIVED",
+            *(["  la sustituye   --replaces <id>       la vieja sale del indice a ARCHIVED"] if by_id else []),
             "  conviven       --replaces none       las dos siguen vigentes",
             "  es duplicado   no la guardes; si hay que matizar, cierra la vieja:",
             '                 gitmem remove <id> "..." --restriction no',
@@ -446,10 +450,11 @@ def validate_replacement(
             # disyuntiva `no|new` resuelve a `no`.
         ]
     )
-    first_id = candidates[0].id
+    why = ' --why "..."' if "why" in allowed else ""
+    answer = candidates[0].id if by_id else "none"
     command = (  # 2026-08-05: arrastra stops/origin/awaits ya dados
         f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
-        f'"{note.headline}"{carry_answer_flags(note, skip=frozenset({"--replaces"}))} --why "..." --description "..." --replaces {first_id}',
+        f'"{note.headline}"{carry_answer_flags(note, skip=frozenset({"--replaces"}))}{why} --description "..." --replaces {answer}',
     )
     return rejection_.build(
         kind="overlapping_note", what=what, options=tuple(options), command=command
