@@ -48,3 +48,4 @@ Checked against the tree on 2026-10-16. If one stops being true, delete the line
 - Elysia `publishToSelf` does nothing: deliver to self by hand. The WS `upgrade()` hook ignores return values.
 - React StrictMode runs effects twice: a second `connect()` kills the socket that is still CONNECTING.
 - health_plans can't change what the boot shows on its own: every ⚠ line in CHECKS/COUNTS is drawn by boot.py from fixed HealthReport fields, so a new kind of warning needs boot.py in scope.
+- Engine 2.1.287 `$.tool.register` passes only name/description/inputSchema (isDeferred dropped before the hook chain and ignored at the bottom); a `tool.describe` answer's isDeferred is honoured. The test kit's `$.tool.describe(...)` does raise the event.

@@ -26,6 +26,7 @@ Mod tests (`*.test.ts`, kit `claude-code/testing`) for the #98 plan pane, in `un
 - Test hooks must be registered BEFORE the test's first `$` call (else TypeError), and one event per test only once ("registered twice"): extra bottoms go before `startSession`.
 - To make a module's `$` op fail: a test hook that THROWS is skipped and core answers anyway. Answer `{ deny }` instead, from a toggled hook (`box.isBroken`) registered before startSession, flipped after. That is how the plan tool's `.catch` was reached.
 - Engine 2.1.287 `$.tool.register` forwards only name/description/inputSchema: `isDeferred` never reaches the event (read in the binary). A test on it stays red on that engine whatever the mod does.
+- `turn.complete` with `reason: 'refusal'` needs a `refusal: { category, explanation }` field (TurnCompleteRefused). Give stopped turns a non-empty partial answer, else "the answer leaked" mutants survive. Mutants: copy the whole `unmassk-toolkit/` dir to the scratchpad and run `claude plugin test unmassk-toolkit` from there.
 
 **Why:** first mod in the repo; kit docs live only in the plugin-authoring skill's types file (`declare module 'claude-code/testing'`).
 **How to apply:** phases 2-4 of #98 reuse the startSession helper pattern and the scratchpad empty-module trick.
