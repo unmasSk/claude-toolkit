@@ -46,6 +46,7 @@ import validator  # noqa: E402
 import zones as zones_lib  # noqa: E402
 from emojis import TYPE_EMOJI  # noqa: E402
 from model import Note  # noqa: E402
+from validator_pointers import takes  # noqa: E402
 from vocabulary import MARKER_KEYS  # noqa: E402
 
 
@@ -249,7 +250,8 @@ def _carry_cli_flags(one_rejection, args):
         if "--discard" not in given:
             command += discards
         # `--work`, `--issue none` and `--quote` only fit Q/I; `--issue` and `--work` exclude each other.
-        gate_type = command.split()[2:3] in (["Q"], ["I"])
+        words = command.split()
+        gate_type = len(words) > 2 and takes(words[2], "quote")
         if "--issue" not in given and "--work" not in given:
             if issue and (gate_type or args.issue != "none"):
                 command += issue

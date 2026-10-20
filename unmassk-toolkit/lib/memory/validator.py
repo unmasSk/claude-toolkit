@@ -126,7 +126,7 @@ from model import Note, Rejection, Zone
 import rejection as rejection_
 import similar
 from validator_issue import validate_issue, validate_issue_gate
-from validator_pointers import carry_accepted_flags, carry_answer_flags, description_flag, validate_pointers
+from validator_pointers import carry_accepted_flags, carry_answer_flags, description_flag, takes, validate_pointers, why_flag
 from validator_searched import (  # noqa: F401 -- reexportados [D-098]
     SEARCHED_PLACEHOLDER,
     SEARCHED_QUESTION,
@@ -369,7 +369,8 @@ def validate_pain_question(note: Note, stops: str | None) -> Rejection | None:
             f'gitmem note M --zones {note.zone1} {note.zone2} '
             f'"{note.headline}"{description_flag(note)}{carry_answer_flags(note, skip=frozenset({"--stops"}))} --stops no',
             f'gitmem note R --zones {note.zone1} {note.zone2} '
-            f'"{note.headline}"{description_flag(note)}{carry_answer_flags(note, skip=frozenset({"--stops"}))} --stops yes',
+            f'"{note.headline}"{description_flag(note)}{carry_answer_flags(note, skip=frozenset({"--stops"}))}'
+            f'{why_flag(note, "R")} --stops yes',
         )
         return rejection_.build(
             kind="missing_pain_answer", what=what, options=options, command=command
@@ -391,7 +392,8 @@ def validate_pain_question(note: Note, stops: str | None) -> Rejection | None:
     )
     command = (  # 2026-08-05: arrastra origin/replaces/awaits ya dados
         f'gitmem note {expected_type} --zones {note.zone1} {note.zone2} '
-        f'"{note.headline}"{description_flag(note)}{carry_answer_flags(note, skip=frozenset({"--stops"}))} --stops {stops}',
+        f'"{note.headline}"{description_flag(note)}{carry_answer_flags(note, skip=frozenset({"--stops"}))}'
+        f'{why_flag(note, expected_type)} --stops {stops}',
     )
     return rejection_.build(
         kind="pain_answer_wrong_type", what=what, options=options, command=command
@@ -400,8 +402,7 @@ def validate_pain_question(note: Note, stops: str | None) -> Rejection | None:
 
 def can_be_replaced(note: Note) -> bool:
     """Only a D, M or R is replaced by id; an I, X, Q or B never is [D-164]."""
-    spec = TYPES.get(note.type)
-    return spec is not None and "replaces" in spec.allowed_fields
+    return takes(note.type, "replaces")
 
 
 def validate_replacement(
@@ -436,9 +437,7 @@ def validate_replacement(
             options.append(f"          Why: {candidate.why}")
         options.append("")
     # Solo las salidas y campos que el tipo admite [D-164].
-    type_spec = TYPES.get(note.type)
-    allowed = type_spec.allowed_fields if type_spec is not None else frozenset()
-    by_id = "replaces" in allowed
+    by_id = takes(note.type, "replaces")
     options.extend(
         [
             "Tres salidas, y solo tres:" if by_id else "Dos salidas, y solo dos:",

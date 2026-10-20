@@ -161,7 +161,7 @@ def _reject_restriction_without_incident(
 # relanzamiento no convergia -- cada rechazo construia su `command` mirando
 # solo lo que EL necesitaba y perdia las respuestas que un rechazo anterior
 # ya habia arrancado (`--stops`, `--origin`, `--replaces`, `--awaits`).
-# Vive aqui, no en `validator.py` (en su techo de 500 lineas): `--origin`/
+# Vive aqui, no en `validator.py`: `--origin`/
 # `--replaces` son exactamente los dos punteros que este fichero ya valida,
 # y comparten el mismo problema con los otros dos flags de respuesta.
 # Reexportado PLANO como el resto de esta pieza [PIEZAS.md Sec.3.3bis]. No
@@ -191,17 +191,25 @@ def carry_answer_flags(note: Note, *, skip: frozenset[str] = frozenset()) -> str
     return "".join(parts)
 
 
+def takes(note_type: str, field: str) -> bool:
+    """Whether a note of ``note_type`` accepts ``field`` [vocabulary.TYPES]."""
+    spec = TYPES.get(note_type)
+    return spec is not None and field in spec.allowed_fields
+
+
+def why_flag(note: Note, target_type: str) -> str:
+    """The given ``--why``, shell-quoted, when ``target_type`` takes it; else nothing."""
+    given = note.why is not None and note.why.strip()
+    return f" --why {shlex.quote(note.why)}" if given and takes(target_type, "why") else ""
+
+
 def carry_accepted_flags(note: Note) -> str:
     """``carry_answer_flags`` plus ``--why``, limited to the fields
     ``note.type`` accepts [D-164]; ``--replaces none`` fits every type."""
-    spec = TYPES.get(note.type)
-    allowed = spec.allowed_fields if spec is not None else frozenset()
-    skip = {f"--{field}" for field in ("origin", "awaits", "keys") if field not in allowed}
-    if "replaces" not in allowed and note.replaces != "none":
+    skip = {f"--{field}" for field in ("origin", "awaits", "keys") if not takes(note.type, field)}
+    if not takes(note.type, "replaces") and note.replaces != "none":
         skip.add("--replaces")
-    has_why = "why" in allowed and note.why is not None and note.why.strip()
-    why = f" --why {shlex.quote(note.why)}" if has_why else ""
-    return carry_answer_flags(note, skip=frozenset(skip)) + why
+    return carry_answer_flags(note, skip=frozenset(skip)) + why_flag(note, note.type)
 
 
 def description_flag(note: Note) -> str:
