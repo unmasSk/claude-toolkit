@@ -398,6 +398,12 @@ def validate_pain_question(note: Note, stops: str | None) -> Rejection | None:
     )
 
 
+def can_be_replaced(note: Note) -> bool:
+    """Only a D, M or R is replaced by id; an I, X, Q or B never is [D-164]."""
+    spec = TYPES.get(note.type)
+    return spec is not None and "replaces" in spec.allowed_fields
+
+
 def validate_replacement(
     note: Note, existing_in_zone: tuple[Note, ...]
 ) -> Rejection | None:
@@ -450,7 +456,8 @@ def validate_replacement(
             # disyuntiva `no|new` resuelve a `no`.
         ]
     )
-    answer = candidates[0].id if by_id else "none"
+    replaceable = [c.id for c in candidates if can_be_replaced(c)]
+    answer = replaceable[0] if by_id and replaceable else "none"
     command = (  # only what was given and the type takes: pasted as printed, it saves that [D-164]
         f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
         f'"{note.headline}"{carry_accepted_flags(note)}{description_flag(note)} --replaces {answer}',
