@@ -63,6 +63,11 @@ def _issue_arg(value):
         )
 
 
+def _replaces_arg(value):
+    """`--replaces`: an id as typed, or the word `none` in any case, kept as lowercase `"none"`."""
+    return "none" if value.lower() == "none" else value
+
+
 def _parse_args(argv):
     parser = argparse.ArgumentParser(prog="note.py")
     parser.add_argument("type", help="D M R Q X I B")
@@ -73,7 +78,7 @@ def _parse_args(argv):
     parser.add_argument("--keys", nargs="+", default=())
     parser.add_argument("--stops", choices=("yes", "no"), default=None)
     parser.add_argument("--origin", nargs="+", default=())
-    parser.add_argument("--replaces", default=None)
+    parser.add_argument("--replaces", type=_replaces_arg, default=None)
     parser.add_argument("--awaits", default=None)
     parser.add_argument("--issue", type=_issue_arg, default=None)
     # Aduana de issues de Q/I (D-065/D-066): un "si" se contesta con `--issue`.
@@ -215,6 +220,16 @@ def _print_success_with_discards(decision_result, alternatives, discard_results,
     print("\n".join(lines))
 
 
+def _relaunch_words(command, headline):
+    """The shell words of a relaunch, headline cut first: rejections print it
+    raw between double quotes, so a flag named in it is not a flag given."""
+    rest = command.replace(f'"{headline}"', "", 1)
+    try:
+        return set(shlex.split(rest))
+    except ValueError:  # an unbalanced quote outside the headline (a zone name): plain words still hold the flags
+        return set(rest.split())
+
+
 def _carry_cli_flags(one_rejection, args):
     """Los relanzamientos `gitmem note` arrastran `--promotes`, `--discard` y
     las respuestas de la aduana de issues (`--issue`, `--quote`, `--work`),
@@ -228,17 +243,19 @@ def _carry_cli_flags(one_rejection, args):
     def carried(command):
         if not command.startswith("gitmem note "):
             return command
-        if "--promotes" not in command:
+        given = _relaunch_words(command, args.headline)
+        if "--promotes" not in given:
             command += promotes
-        if "--discard" not in command:
+        if "--discard" not in given:
             command += discards
         # `--work`, `--issue none` and `--quote` only fit Q/I; `--issue` and `--work` exclude each other.
         gate_type = command.split()[2:3] in (["Q"], ["I"])
-        if "--issue" not in command and "--work" not in command and (gate_type or args.issue != "none"):
-            command += issue
-        if "--work" not in command and "--issue" not in command and gate_type:
-            command += work
-        if "--quote" not in command and gate_type:
+        if "--issue" not in given and "--work" not in given:
+            if issue and (gate_type or args.issue != "none"):
+                command += issue
+            elif gate_type:
+                command += work
+        if "--quote" not in given and gate_type:
             command += quote
         return command
 

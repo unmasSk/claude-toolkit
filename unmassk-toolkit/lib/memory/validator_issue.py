@@ -44,12 +44,14 @@ hermanos de `lib/memory/` [PIEZAS.md Sec.13], importados PLANOS
 [PIEZAS.md Sec.3.3bis].
 """
 
+import re
+import shlex
 import subprocess
 from pathlib import Path
 
 from model import Note, Rejection
 import rejection as rejection_
-from validator_pointers import carry_accepted_flags
+from validator_pointers import carry_accepted_flags, description_flag
 
 # Segundos de espera para `gh issue view` -- mismo valor y misma fuente
 # que `health._GH_TIMEOUT` ("consulta simple, 0,85s medidos"), no una
@@ -155,7 +157,7 @@ def validate_issue(note: Note, issue: int | None) -> Rejection | None:
     )
     command = (
         f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
-        f'"{note.headline}" --description "..."{carry_accepted_flags(note)} --issue <numero real>',
+        f'"{note.headline}"{description_flag(note)}{carry_accepted_flags(note)} --issue <numero real>',
     )
     return rejection_.build(
         kind="issue_not_found", what=what, options=options, command=command
@@ -169,6 +171,21 @@ _MEASURING_STICK = (
     "¿cerrar esta nota exige trabajo — código, medir, construir — o "
     "solo una respuesta/decisión?"
 )
+
+_HOLE_RE = re.compile(r"<[^<>]*>")
+
+
+def _quote_given(note: Note) -> bool:
+    """A real owner quote: not blank and not a relaunch's `<...>` hole pasted unfilled."""
+    text = (note.quote or "").strip()
+    return bool(text) and not _HOLE_RE.fullmatch(text)
+
+
+def _quote_flag(note: Note) -> str:
+    """` --quote` with the owner's words already given, else the hole to fill."""
+    if _quote_given(note):
+        return f" --quote {shlex.quote(note.quote)}"
+    return ' --quote "<frase exacta del dueño>"'
 
 
 def _reject_work_not_allowed(note: Note) -> Rejection:
@@ -184,7 +201,7 @@ def _reject_work_not_allowed(note: Note) -> Rejection:
     options = (f"Estos campos no existen para el tipo {note.type}: work",)
     command = (
         f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
-        f'"{note.headline}" --description "..."{carry_accepted_flags(note)}',
+        f'"{note.headline}"{description_flag(note)}{carry_accepted_flags(note)}',
     )
     return rejection_.build(
         kind="field_not_allowed", what=what, options=options, command=command
@@ -207,12 +224,12 @@ def _reject_missing_measuring_stick_answer(note: Note) -> Rejection:
     )
     command = (
         f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
-        f'"{note.headline}" --description "..."{carry_accepted_flags(note)} --work no',
+        f'"{note.headline}"{description_flag(note)}{carry_accepted_flags(note)} --work no',
         f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
-        f'"{note.headline}" --description "..."{carry_accepted_flags(note)} --issue N',
+        f'"{note.headline}"{description_flag(note)}{carry_accepted_flags(note)} --issue N',
         f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
-        f'"{note.headline}" --description "..."{carry_accepted_flags(note)} --issue none '
-        f'--quote "<frase exacta del dueño>"',
+        f'"{note.headline}"{description_flag(note)}{carry_accepted_flags(note)} --issue none'
+        f'{_quote_flag(note)}',
     )
     return rejection_.build(
         kind="missing_issue_gate_answer", what=what, options=options, command=command
@@ -240,7 +257,7 @@ def _reject_issue_none_not_allowed(note: Note) -> Rejection:
     )
     command = (
         f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
-        f'"{note.headline}" --description "..."{carry_accepted_flags(note)}',
+        f'"{note.headline}"{description_flag(note)}{carry_accepted_flags(note)}',
     )
     return rejection_.build(
         kind="issue_none_not_allowed", what=what, options=options, command=command
@@ -264,9 +281,9 @@ def _reject_issue_and_work_contradiction(note: Note) -> Rejection:
     )
     command = (
         f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
-        f'"{note.headline}" --description "..."{carry_accepted_flags(note)} --issue N',
+        f'"{note.headline}"{description_flag(note)}{carry_accepted_flags(note)} --issue N',
         f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
-        f'"{note.headline}" --description "..."{carry_accepted_flags(note)} --work no',
+        f'"{note.headline}"{description_flag(note)}{carry_accepted_flags(note)} --work no',
     )
     return rejection_.build(
         kind="issue_work_contradiction", what=what, options=options, command=command
@@ -285,8 +302,8 @@ def _reject_issue_none_missing_quote(note: Note) -> Rejection:
     )
     command = (
         f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
-        f'"{note.headline}" --description "..."{carry_accepted_flags(note)} --issue none '
-        f'--quote "<frase exacta del dueño>"',
+        f'"{note.headline}"{description_flag(note)}{carry_accepted_flags(note)} --issue none'
+        f'{_quote_flag(note)}',
     )
     return rejection_.build(
         kind="issue_none_missing_quote", what=what, options=options, command=command
@@ -332,8 +349,7 @@ def validate_issue_gate(note: Note, issue, work: str | None) -> Rejection | None
     if issue is None and work is None:
         return _reject_missing_measuring_stick_answer(note)
 
-    quote_has_content = note.quote is not None and note.quote.strip()
-    if issue == "none" and not quote_has_content:
+    if issue == "none" and not _quote_given(note):
         return _reject_issue_none_missing_quote(note)
 
     return None

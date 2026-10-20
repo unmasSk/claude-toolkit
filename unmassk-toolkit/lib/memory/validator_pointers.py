@@ -181,11 +181,11 @@ def carry_answer_flags(note: Note, *, skip: frozenset[str] = frozenset()) -> str
     if "--stops" not in skip and note.type in ("M", "R"):
         parts.append(f' --stops {"yes" if note.type == "R" else "no"}')
     if "--origin" not in skip and note.origin:
-        parts.append(f' --origin {" ".join(note.origin)}')
+        parts.append(f" --origin {shlex.join(note.origin)}")
     if "--replaces" not in skip and note.replaces is not None:
         parts.append(f' --replaces {note.replaces}')
     if "--awaits" not in skip and note.awaits is not None and note.awaits.strip():
-        parts.append(f' --awaits "{note.awaits}"')
+        parts.append(f" --awaits {shlex.quote(note.awaits)}")
     if "--keys" not in skip and note.keys:
         parts.append(f" --keys {shlex.join(note.keys)}")
     return "".join(parts)
@@ -202,3 +202,10 @@ def carry_accepted_flags(note: Note) -> str:
     has_why = "why" in allowed and note.why is not None and note.why.strip()
     why = f" --why {shlex.quote(note.why)}" if has_why else ""
     return carry_answer_flags(note, skip=frozenset(skip)) + why
+
+
+def description_flag(note: Note) -> str:
+    """The given ``--description``, shell-quoted; the ``"..."`` hole only when none was given."""
+    if note.description and note.description.strip():
+        return f" --description {shlex.quote(note.description)}"
+    return ' --description "..."'

@@ -126,7 +126,7 @@ from model import Note, Rejection, Zone
 import rejection as rejection_
 import similar
 from validator_issue import validate_issue, validate_issue_gate
-from validator_pointers import carry_answer_flags, validate_pointers
+from validator_pointers import carry_accepted_flags, carry_answer_flags, description_flag, validate_pointers
 from validator_searched import (  # noqa: F401 -- reexportados [D-098]
     SEARCHED_PLACEHOLDER,
     SEARCHED_QUESTION,
@@ -367,9 +367,9 @@ def validate_pain_question(note: Note, stops: str | None) -> Rejection | None:
         )
         command = (  # 2026-08-05: arrastra origin/replaces/awaits ya dados (carry_answer_flags)
             f'gitmem note M --zones {note.zone1} {note.zone2} '
-            f'"{note.headline}" --description "..."{carry_answer_flags(note, skip=frozenset({"--stops"}))} --stops no',
+            f'"{note.headline}"{description_flag(note)}{carry_answer_flags(note, skip=frozenset({"--stops"}))} --stops no',
             f'gitmem note R --zones {note.zone1} {note.zone2} '
-            f'"{note.headline}" --description "..."{carry_answer_flags(note, skip=frozenset({"--stops"}))} --stops yes',
+            f'"{note.headline}"{description_flag(note)}{carry_answer_flags(note, skip=frozenset({"--stops"}))} --stops yes',
         )
         return rejection_.build(
             kind="missing_pain_answer", what=what, options=options, command=command
@@ -391,7 +391,7 @@ def validate_pain_question(note: Note, stops: str | None) -> Rejection | None:
     )
     command = (  # 2026-08-05: arrastra origin/replaces/awaits ya dados
         f'gitmem note {expected_type} --zones {note.zone1} {note.zone2} '
-        f'"{note.headline}" --description "..."{carry_answer_flags(note, skip=frozenset({"--stops"}))} --stops {stops}',
+        f'"{note.headline}"{description_flag(note)}{carry_answer_flags(note, skip=frozenset({"--stops"}))} --stops {stops}',
     )
     return rejection_.build(
         kind="pain_answer_wrong_type", what=what, options=options, command=command
@@ -450,11 +450,10 @@ def validate_replacement(
             # disyuntiva `no|new` resuelve a `no`.
         ]
     )
-    why = ' --why "..."' if "why" in allowed else ""
     answer = candidates[0].id if by_id else "none"
-    command = (  # 2026-08-05: arrastra stops/origin/awaits ya dados
+    command = (  # only what was given and the type takes: pasted as printed, it saves that [D-164]
         f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
-        f'"{note.headline}"{carry_answer_flags(note, skip=frozenset({"--replaces"}))}{why} --description "..." --replaces {answer}',
+        f'"{note.headline}"{carry_accepted_flags(note)}{description_flag(note)} --replaces {answer}',
     )
     return rejection_.build(
         kind="overlapping_note", what=what, options=tuple(options), command=command
