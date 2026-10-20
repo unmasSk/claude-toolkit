@@ -36,7 +36,7 @@ const readSteps = (raw: unknown, where: string): PlanStep[] | string => {
   for (const one of raw) {
     const id = typeof one?.id === 'number' ? String(one.id) : one?.id
     if (!isText(id) || !isText(one?.title)) return `every step of ${where} needs an id and a title`
-    steps.push({ id, title: one.title, status: 'pending', rounds: 0, doneAt: null, agents: [] })
+    steps.push({ id, title: one.title, status: 'pending', rounds: 0, startedAt: null, spentMs: null, agents: [] })
   }
   return steps
 }
@@ -77,6 +77,16 @@ export const applyTask = (plan: Plan, task: unknown, now: number): Change => {
   return { plan: { current: { title: task.title, issue, startedAt: now, finishedAt: null, phases }, finished } }
 }
 
+// A step's time is the sum of its spans in progress: a reopened one adds a new span; one
+// ticked again, or ticked without being in progress, adds none. Plans saved before may lack both fields.
+const timeStep = (step: PlanStep, status: PlanStatus, now: number) => {
+  const isRunning = step.status === 'in_progress'
+  if (status === 'in_progress' && !isRunning) step.startedAt = now
+  if (status !== 'done') return
+  if (isRunning && typeof step.startedAt === 'number') step.spentMs = (step.spentMs ?? 0) + now - step.startedAt
+  step.startedAt = null
+}
+
 export const applyStatus = (plan: Plan, stepId: unknown, status: unknown, now: number): Change => {
   const id = typeof stepId === 'number' ? String(stepId) : stepId
   if (!isText(id)) return { error: 'step needs a step id' }
@@ -87,9 +97,8 @@ export const applyStatus = (plan: Plan, stepId: unknown, status: unknown, now: n
   const current = structuredClone(plan.current)
   const step = stepsOf(current).find(one => keyOf(one.id) === keyOf(id))
   if (step === undefined) return { error: `the task "${current.title}" has no step "${id}"` }
+  timeStep(step, status, now)
   step.status = status
-  // A step ticked again keeps the time it was first done; one reopened loses it.
-  step.doneAt = status === 'done' ? (step.doneAt ?? now) : null
   // A finished step keeps its tick and rounds; its agents leave (D-151).
   if (step.status === 'done') step.agents = []
   const isFinished = stepsOf(current).every(one => one.status === 'done')

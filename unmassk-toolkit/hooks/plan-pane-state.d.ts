@@ -2,13 +2,15 @@ export type PlanStatus = 'pending' | 'in_progress' | 'done'
 
 export type PlanAgent = { id: string; type: string; result: string | null; durationMs: number | null }
 
-// doneAt: when the step was ticked (ms), null while it is not done.
+// startedAt: when its current span in progress began (ms), null outside one.
+// spentMs: the sum of its closed spans, null until the first one closes.
 export type PlanStep = {
   id: string
   title: string
   status: PlanStatus
   rounds: number
-  doneAt: number | null
+  startedAt: number | null
+  spentMs: number | null
   agents: PlanAgent[]
 }
 

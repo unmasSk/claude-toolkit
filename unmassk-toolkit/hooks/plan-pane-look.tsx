@@ -1,4 +1,4 @@
-// The pane's drawing (D-158, D-160): colours, icons, bar and done times copied from
+// The pane's drawing (D-158, D-160, D-161): colours, icons and bar copied from
 // nix-checklist-sidebar (hooks/register.tsx), Copyright (c) 2026 nikscz, MIT; see NOTICE beside this file.
 import type { Elements } from 'claude-code'
 
@@ -59,13 +59,9 @@ const pills = (steps: readonly PlanStep[]) => {
   }
 }
 
-const clock = (ms: number) => {
-  const d = new Date(ms)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
-// A plan saved before doneAt existed has no time to show.
-const doneTime = (step: PlanStep) => (step.status === 'done' && typeof step.doneAt === 'number' ? clock(step.doneAt) : null)
+// How long a done step took; none for a step never in progress or saved before spentMs existed.
+const tookOf = (step: PlanStep) =>
+  step.status === 'done' && typeof step.spentMs === 'number' ? formatDuration(step.spentMs) : null
 
 const issueOf = (issue: number | null) => (issue === null ? '' : ` #${issue}`)
 
@@ -91,10 +87,10 @@ const Bar = ({ Box, Text, Svg }: Ui, steps: PlanStep[]) => {
   if (Svg === undefined) {
     return (
       <Text>
-        {steps.map(step => (
+        {steps.slice(0, PILL_CAP).map(step => (
           <Text {...TERMINAL_PAINT[step.status]}>{`${SEGMENT[step.status]} `}</Text>
         ))}
-        <Text dimColor>{` ${counter}`}</Text>
+        <Text dimColor>{counter}</Text>
       </Text>
     )
   }
@@ -107,48 +103,60 @@ const Bar = ({ Box, Text, Svg }: Ui, steps: PlanStep[]) => {
   )
 }
 
-const Rounds = ({ Text }: Ui, rounds: number) => (rounds > 1 ? <Text color={AMBER}>{` ↻${rounds}`}</Text> : null)
+const Rounds = ({ Box, Text }: Ui, rounds: number) =>
+  rounds > 1 ? (
+    <Box flexShrink={0}>
+      <Text color={AMBER}>{`↻${rounds}`}</Text>
+    </Box>
+  ) : null
 
+// What a row took, pushed to its right edge by the growing part before it.
+const Took = ({ Box, Text }: Ui, took: string | null) =>
+  took === null ? null : (
+    <Box flexShrink={0}>
+      <Text dimColor>{took}</Text>
+    </Box>
+  )
+
+// Only the numbered title is cut: the round mark and the duration always show.
 const StepRow = (ui: Ui, step: PlanStep) => {
   const { Box, Text, Svg } = ui
-  const time = doneTime(step)
   const label = { bold: step.status === 'in_progress', dimColor: step.status === 'done' }
-  if (Svg === undefined) {
-    return (
-      <Text wrap="truncate-end" {...label}>
-        <Text {...TERMINAL_PAINT[step.status]}>{MARK[step.status]}</Text>
-        {` ${step.title}`}
-        {Rounds(ui, step.rounds)}
-        {time === null ? '' : `  ${time}`}
-      </Text>
+  const mark =
+    Svg === undefined ? (
+      <Text {...TERMINAL_PAINT[step.status]}>{MARK[step.status]}</Text>
+    ) : (
+      <Svg source={ICON[step.status]} alt={ALT[step.status]} width={ICON_SIZE} height={ICON_SIZE} />
     )
-  }
   return (
     <Box flexDirection="row" alignItems="center" gap={1}>
-      <Svg source={ICON[step.status]} alt={ALT[step.status]} width={ICON_SIZE} height={ICON_SIZE} />
-      <Box flexGrow={1} flexShrink={1} minWidth={0}>
-        <Text wrap="truncate-end" {...label}>
-          {step.title}
-          {Rounds(ui, step.rounds)}
-        </Text>
+      {mark}
+      <Box flexDirection="row" flexGrow={1} flexShrink={1} minWidth={0} gap={1}>
+        <Box flexShrink={1} minWidth={0}>
+          <Text wrap="truncate-end" {...label}>{`${step.id} ${step.title}`}</Text>
+        </Box>
+        {Rounds(ui, step.rounds)}
       </Box>
-      {time === null ? null : <Text dimColor>{time}</Text>}
+      {Took(ui, tookOf(step))}
     </Box>
   )
 }
 
-// One line per agent: the status is cut so the name and the time always show.
-const AgentRow = ({ Box, Text }: Ui, agent: PlanAgent, columns: number) => {
+// One line per agent: the status is cut so the name and the duration always show.
+const AgentRow = (ui: Ui, agent: PlanAgent, columns: number) => {
+  const { Box, Text } = ui
   const head = `${agent.type.split(':').pop()} · `
-  const time = agent.durationMs === null ? '' : ` · ${formatDuration(agent.durationMs)}`
-  const room = columns - AGENT_INDENT - [...head].length - [...time].length
+  const took = agent.durationMs === null ? null : formatDuration(agent.durationMs)
+  const room = columns - AGENT_INDENT - [...head].length - (took === null ? 0 : [...took].length + 1)
   return (
-    <Box paddingLeft={AGENT_INDENT}>
-      <Text dimColor wrap="truncate-end">
-        {head}
-        <Text color={isStopped(agent) ? RED : undefined}>{fit(agent.result ?? 'running', Math.max(room, 1))}</Text>
-        {time}
-      </Text>
+    <Box flexDirection="row" paddingLeft={AGENT_INDENT} gap={1}>
+      <Box flexGrow={1} flexShrink={1} minWidth={0}>
+        <Text dimColor wrap="truncate-end">
+          {head}
+          <Text color={isStopped(agent) ? RED : undefined}>{fit(agent.result ?? 'running', Math.max(room, 1))}</Text>
+        </Text>
+      </Box>
+      {Took(ui, took)}
     </Box>
   )
 }
