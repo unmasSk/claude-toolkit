@@ -16,6 +16,8 @@ export const rounds = (n: number) => new RegExp(`↻\\s?${n}\\b`)
 // Durations (owner's format, running and frozen alike): under a minute `45s`, under an
 // hour `12m 05s`, from an hour `1h 12m`. `took('12m 05s')` matches that text as a whole.
 export const took = (text: string) => new RegExp(`\\b${text}\\b`)
+// Every duration in a text, in that same format (use with String.match).
+export const DURATION = /\b(\d+h \d+m|\d+m \d+s|\d+s)\b/g
 
 const START = { cwd: '/work/project', surface: 'desktop', isInteractive: true } as const
 
@@ -79,6 +81,16 @@ export const mountPane = async ($: any, paneId: string, surface: (typeof SURFACE
       view: {},
     },
   })
+
+export type Surface = (typeof SURFACES)[number]
+
+// The pane drawn once on a surface: mount, read, unmount.
+export const drawn = async ($: any, paneId: string, surface: Surface) => {
+  const ui = await mountPane($, paneId, surface)
+  const tree = await ui.drawn()
+  await ui.unmount()
+  return tree
+}
 
 const textOf = (node: any): string => {
   if (node === null || node === undefined || node === false) return ''

@@ -4,22 +4,12 @@
 // Bex, 2026-10-20: «a la derecha debería de haber el sumatorio de todo». Times written by hand.
 // Run: claude plugin test unmassk-toolkit
 import { test, expect } from 'claude-code/testing'
-import { ISSUE_TASK, SURFACES, callPlan, mountPane, rightColumnOf, rowOf, rowsOf, startSession } from './plan-kit.ts'
+import { DURATION, ISSUE_TASK, SURFACES, callPlan, drawn, mountPane, rightColumnOf, rowOf, rowsOf, startSession } from './plan-kit.ts'
 
 const STEP_IDS = ISSUE_TASK.phases.flatMap(phase => phase.steps.map(step => step.id))
 const [FIRST, SECOND] = ISSUE_TASK.phases[0].steps
 const MINUTE = 60_000
 const CUT_WRAPS = ['truncate', 'truncate-end', 'end']
-const DURATION = /\b(\d+h \d+m|\d+m \d+s|\d+s)\b/g
-
-type Surface = (typeof SURFACES)[number]
-
-const drawn = async ($: any, paneId: string, surface: Surface) => {
-  const ui = await mountPane($, paneId, surface)
-  const tree = await ui.drawn()
-  await ui.unmount()
-  return tree
-}
 
 const titleRowOf = (tree: any) => rowOf(tree, ISSUE_TASK.title).node
 

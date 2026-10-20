@@ -15,10 +15,10 @@ import {
   TICK_STROKE,
   COUNTER,
   callPlan,
+  drawn,
   endAgent,
   leavesOf,
   markLeafOf,
-  mountPane,
   paintAt,
   progressOf,
   rowNodesOf,
@@ -38,13 +38,6 @@ const START = new Date(2026, 9, 20, 14, 3).getTime()
 const MINUTE = 60_000
 
 const isGrey = (paint: Paint | undefined) => paint !== undefined && (paint.color === GREY || (paint.color === undefined && paint.dim))
-
-const drawn = async ($: any, paneId: string, surface: 'terminal' | 'desktop') => {
-  const ui = await mountPane($, paneId, surface)
-  const tree = await ui.drawn()
-  await ui.unmount()
-  return tree
-}
 
 // 2.1 done at 14:05, 2.2 done at 14:06 in the time test; here 2.1 done, 2.2 in progress, 3.1 pending.
 const withOneOfEach = async ($: any, on: any) => {
@@ -166,6 +159,16 @@ for (const surface of ['terminal', 'desktop'] as const) {
     const leaves = rowOf(tree, DONE!.title).leaves
 
     expect(paintAt(leaves, '16m 00s'), `2.1's 16m 00s in #5c5b56, not dim: ${JSON.stringify(leaves)}`).toMatchObject({ color: GREY, dim: false })
+  })
+
+  test(`should_paint_the_running_step_time_bold_like_its_label_not_dim_on_the_${surface}`, async ($, on) => {
+    const { opens, clock } = await withOneOfEach($, on)
+    await clock.advance(45_000)
+
+    const tree = await drawn($, opens[0]!.id, surface)
+    const leaves = rowOf(tree, RUNNING!.title).leaves
+
+    expect(paintAt(leaves, '45s'), `2.2's 45s weight 'bold', not dim: ${JSON.stringify(leaves)}`).toMatchObject({ weight: 'bold', dim: false })
   })
 }
 

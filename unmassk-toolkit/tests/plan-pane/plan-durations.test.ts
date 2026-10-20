@@ -7,9 +7,11 @@
 // Run: claude plugin test unmassk-toolkit
 import { test, expect } from 'claude-code/testing'
 import {
+  DURATION,
   ISSUE_TASK,
   SURFACES,
   callPlan,
+  drawn,
   endAgent,
   mountPane,
   rightColumnOf,
@@ -26,17 +28,7 @@ const ULTRON = 'unmassk-toolkit:ultron'
 const CERBERUS = 'unmassk-toolkit:cerberus'
 const BODY_COLUMNS = 60
 const CUT_WRAPS = ['truncate', 'truncate-end', 'end']
-const DURATION = /\b(\d+h \d+m|\d+m \d+s|\d+s)\b/g
 const LONG = 'Comprobar que todo el panel se ve bien en el escritorio y en la terminal sin que nada se corte'
-
-type Surface = (typeof SURFACES)[number]
-
-const drawn = async ($: any, paneId: string, surface: Surface) => {
-  const ui = await mountPane($, paneId, surface)
-  const tree = await ui.drawn()
-  await ui.unmount()
-  return tree
-}
 
 const aligned = (row: any) => {
   const right = rightColumnOf(row)
