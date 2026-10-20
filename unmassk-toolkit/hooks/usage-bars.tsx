@@ -11,8 +11,6 @@ type Rate = { kind: string; percentUsed: number; resetsAt?: string }
 
 
 const CELLS = 10
-const LEVEL_TERMINAL = { ok: 'green', warn: 'yellow', high: 'red' } as const
-const TRACK = '#8a8a8a'
 
 const pickLimit = (list: readonly Rate[], kind: string): UsageWindow | null => {
   const r = list.find(x => x.kind === kind)
@@ -40,7 +38,6 @@ const toReading = (context: Context | undefined, list: readonly Rate[]): UsageRe
 const percentOf = (w: UsageWindow, now: number) =>
   w.resetsAt !== null && Date.parse(w.resetsAt) <= now ? 0 : Math.max(0, Math.min(100, w.percentUsed))
 
-const level = (percent: number) => (percent >= 90 ? 'high' : percent >= 70 ? 'warn' : 'ok')
 
 const fmtPercent = (percent: number) => `${Math.round(percent)}%`
 
@@ -66,20 +63,25 @@ export const register: Register = on => {
 
 type Ui = { Box: any; Text: any; Svg?: any }
 
-// Looks like the Context card of Claude Desktop: a dim heading, «48 % usado» with the tokens on the right, a thin full-width bar.
-const BLUE = '#4a8ff7'
-const LINE_H = 4
+// An instrument of fine marks, in the plan pane's own colours (D-169): green while there is room, orange from 90 %.
+const GREEN = '#5a9e6f'
+const ORANGE = '#d98b6a'
+const GREY = '#5c5b56'
+const MARKS = 40
+const MARK_H = 8
 
 const fmtTokens = (n: number) =>
-  n >= 1_000_000 ? `${+(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${+(n / 1_000).toFixed(1)}k` : String(n)
+  n >= 1_000_000 ? `${+(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${Math.round(n / 1_000)}k` : String(n)
 
-const lineSvg = (percent: number, width: number) => {
-  const track = `<rect x="0" y="0" width="${width}" height="${LINE_H}" rx="${LINE_H / 2}" fill="${TRACK}" fill-opacity="0.25"/>`
-  const fill =
-    percent > 0
-      ? `<rect x="0" y="0" width="${Math.max(LINE_H, (width * percent) / 100).toFixed(1)}" height="${LINE_H}" rx="${LINE_H / 2}" fill="${BLUE}"/>`
-      : ''
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${LINE_H}" viewBox="0 0 ${width} ${LINE_H}">${track}${fill}</svg>`
+const marksSvg = (percent: number, width: number) => {
+  const step = width / MARKS
+  const on = Math.round((percent / 100) * MARKS)
+  const colour = percent >= 90 ? ORANGE : GREEN
+  const marks = Array.from({ length: MARKS }, (_, i) => {
+    const lit = i < on
+    return `<rect x="${(i * step + 0.6).toFixed(1)}" y="0" width="${(step - 1.6).toFixed(1)}" height="${MARK_H}" rx="1" fill="${lit ? colour : GREY}" fill-opacity="${lit ? 1 : 0.45}"/>`
+  })
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${MARK_H}" viewBox="0 0 ${width} ${MARK_H}">${marks.join('')}</svg>`
 }
 
 // Drawn by the plan pane under the plan; nothing until the first reading.
@@ -92,7 +94,7 @@ export const drawUsage = (ui: Ui, reading: UsageReading | null, now: number, col
       ? [{
           label: 'Sesión',
           percent: Math.max(0, Math.min(100, reading.context)),
-          detail: reading.tokens ? `${fmtTokens(reading.tokens.used)} / ${fmtTokens(reading.tokens.window)}` : '',
+          detail: reading.tokens ? `${fmtTokens(reading.tokens.used)}/${fmtTokens(reading.tokens.window)}` : '',
         }]
       : []),
     ...(reading.sevenDay ? [{ label: 'Semana', percent: percentOf(reading.sevenDay, now), detail: '' }] : []),
@@ -105,19 +107,19 @@ export const drawUsage = (ui: Ui, reading: UsageReading | null, now: number, col
         Svg === undefined ? (
           <Text key={label}>
             {`${label} `}
-            <Text color={LEVEL_TERMINAL[level(percent)]}>{barCells(percent)}</Text>
+            <Text color={percent >= 90 ? ORANGE : GREEN}>{barCells(percent)}</Text>
             <Text bold>{` ${fmtPercent(percent)}`}</Text>
           </Text>
         ) : (
           <Box key={label} flexDirection="column">
-            <Text dimColor>{label}</Text>
             <Box flexDirection="row">
               <Box flexGrow={1}>
-                <Text>{`${Math.round(percent)} % usado`}</Text>
+                <Text dimColor>{label}</Text>
               </Box>
-              {detail !== '' && <Text dimColor>{detail}</Text>}
+              <Text color={percent >= 90 ? ORANGE : undefined}>{`${Math.round(percent)}`}</Text>
+              <Text dimColor>{detail !== '' ? `%  ${detail}` : '%'}</Text>
             </Box>
-            <Svg source={lineSvg(percent, width)} alt={`${label} ${fmtPercent(percent)}`} width={width} height={LINE_H} />
+            <Svg source={marksSvg(percent, width)} alt={`${label} ${fmtPercent(percent)}`} width={width} height={MARK_H} />
           </Box>
         ),
       )}
