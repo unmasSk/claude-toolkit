@@ -45,6 +45,22 @@ el buscador la pinta "vigente · replaced by D-002", y D-001 sigue viva. Probar
 siempre los flags combinados que el contrato da por sueltos, y leer el estado por
 el indice Y por el cuerpo del commit: el verificador de coherencia solo mira uno.
 
+### "¿Ya está este flag en el comando?" por subcadena ve el texto del propio usuario (2026-10-20)
+Un arrastre de flags que decide `if "--issue" not in command` mira el comando
+entero, titular incluido. Un titular que nombra el flag (en un repo que escribe
+notas sobre sus propios flags) hace que el valor real no se arrastre; pegado el
+Relanza con sus huecos rellenos, la nota se guarda sin ese campo, rc 0. Ataque:
+poner el nombre de cada flag arrastrado dentro del titular y diffear argv contra
+el Relanza. Medir la frecuencia real en los titulares del historial.
+
+### Un hueco que no es el que rellena el que pega se guarda como dato (2026-10-20)
+Los Relanza mezclan huecos `"..."` con marcadores `<frase exacta del dueño>`,
+`<numero real>`. El sistema no rechaza ninguno: pegado rellenando solo los `...`
+(lo que hace el propio helper `_fill` de los tests), el marcador queda guardado
+como la cita del dueño. Peor si el valor real ya se habia dado y el Relanza lo
+sustituye por el marcador. Ataque: provocar cada rechazo con todos los valores
+reales dados, pegar cada linea rellenando solo `...`, leer el commit con git log.
+
 ### La plantilla "Relanza" de un rechazo se reconstruye desde el modelo, no desde argv (2026-10-19)
 Un rechazo que arma su comando desde los campos del registro pierde todo flag que
 no es campo (`--discard`, `--promotes`, `--keys`). Pegar ese comando tal cual da

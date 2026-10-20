@@ -5,6 +5,14 @@ metadata:
   type: project
 ---
 
+## claude-toolkit: R.17 salida del solape para todo tipo (2026-10-20)
+FALLA (T1). Una cita dada sin `--issue none` vuelve en la tercera linea del Relanza
+como `<frase exacta del dueño>` y se guarda como palabras del dueño; un titular que
+nombra un flag hace que el Relanza tire `--issue`/`--quote`/`--work` (deteccion por
+subcadena). T2: `"..."` se guarda como contenido; el Relanza del solape ofrece
+`--origin` a una Q; el muro de `remove` apunta a su propia incidencia; `None` en
+mayusculas. 2 mutantes vivos (racimo pinta "replaces none", filtro de campos).
+
 ## claude-toolkit: #105 remove con id repetido y lectura por search/arranque (2026-10-19)
 FALLA (T1). Tras `remove <id> --commit`, el arranque oculta el gemelo vivo (filtra
 por id) y sigue diciendo "✓ no duplicate IDs"; un muro nacido de una incidencia

@@ -8,6 +8,16 @@ recordado), sistema v1 retirado al final (borrado entero en `615f5cc`,
 El detalle completo de la era retirada sigue en `round-history.md` y
 `docs/deprecated/`.
 
+## gitmem note, salida del solape para todo tipo (R.17, 2026-10-20) — lo que aguantó
+- `Replaces: none` no se pinta como puntero en ningún lector: `search --id`,
+  zona, `--chain`, informe del arranque, aduana de commits crudos.
+- Una cita de 200 KB con comillas y acentos cruza el Relanza del solape y vuelve
+  idéntica por `git log`. 80 candidatas en el rechazo: 0,17 s.
+- Cinco `note --replaces none` en paralelo, y `remove` contra dos `note` a la
+  vez: ids distintos, índices coherentes.
+- La comprobación de ida y vuelta de los tests se pone roja si la escritura
+  pierde `Quote:` (sabotaje en copia, confirmado por `git log`).
+
 ## gitmem remove con id repetido (#105, 2026-10-19) — lo que aguantó
 - `--commit`: prefijo de 3, sha de otra nota, sha en id no repetido, sha en
   mayusculas, mismo `--commit` dos veces: todo rechaza o acierta sin tocar nada.
