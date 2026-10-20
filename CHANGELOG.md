@@ -11,6 +11,10 @@
 
 - **The installer makes no commit on a protected branch** (R.6, D-157): it leaves the changes in the working tree and the session boot says so; the protected-branch rule now lives in one copy (`lib/memory/repo_guard.py`).
 
+### Fixed
+
+- **The plan pane's close gate refused the closing step itself** (D-156, D-163, R.18): publishing or closing the issue while that step was in progress, with CI or install steps after it still pending, was blocked, so it could never publish; the gate now counts only the steps before the one in progress, and with several in progress the earliest is the reference.
+
 ## [1.53.0] - 2026-10-20
 
 ### Added
