@@ -25,7 +25,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 const isIssue = (value: unknown): value is number | null =>
   value === null || (typeof value === 'number' && Number.isInteger(value))
 
-const stepsOf = (task: PlanTask): PlanStep[] => task.phases.flatMap(phase => phase.steps)
+export const stepsOf = (task: PlanTask): PlanStep[] => task.phases.flatMap(phase => phase.steps)
 
 export const pendingSteps = (plan: Plan): PlanStep[] =>
   plan.current === null ? [] : stepsOf(plan.current).filter(step => step.status !== 'done')

@@ -1,7 +1,7 @@
 import { update } from 'claude-code'
 import type { Register, StateDollar } from 'claude-code'
 
-import { EMPTY_PLAN, addAgent, applyStatus, applyTask, endAgent, formatDuration, pendingSteps } from './plan-pane-model.ts'
+import { EMPTY_PLAN, addAgent, applyStatus, applyTask, endAgent, formatDuration, pendingSteps, stepsOf } from './plan-pane-model.ts'
 import type { Change } from './plan-pane-model.ts'
 import type { Plan, PlanAgent, PlanStep, PlanTask } from './plan-pane-state'
 
@@ -9,8 +9,12 @@ import type { Plan, PlanAgent, PlanStep, PlanTask } from './plan-pane-state'
 const PANE = 'plan'
 const PLAN = { plugin: 'unmassk-toolkit', key: 'plan' } as const
 
+// The look of the Checklist mod (D-158): a circle per step, a segmented bar with its count.
 const TICK = '✓'
-const MARK = { pending: '○', in_progress: '▶', done: TICK } as const
+const MARK = { pending: '○', in_progress: '◐', done: '●' } as const
+const SEGMENT = { done: '━', pending: '─' } as const
+const ELLIPSIS = '…'
+const AGENT_INDENT = 2
 
 const PLAN_TOOL_SPEC = {
   name: 'plan',
@@ -66,11 +70,21 @@ const taskRow = (task: PlanTask) =>
 
 const roundsOf = (rounds: number) => (rounds > 1 ? ` ↻${rounds}` : '')
 
-const stepRow = (step: PlanStep) => `  ${MARK[step.status]} ${step.title}${roundsOf(step.rounds)}`
+const stepRow = (step: PlanStep) => `${MARK[step.status]} ${step.title}${roundsOf(step.rounds)}`
 
-const agentRow = (agent: PlanAgent) =>
-  `      ${agent.type.split(':').pop()} · ${agent.result ?? 'running'}` +
-  (agent.durationMs === null ? '' : ` · ${formatDuration(agent.durationMs)}`)
+// Cuts a text to `room` characters, the last one an ellipsis.
+const fit = (text: string, room: number) => {
+  const chars = [...text]
+  return chars.length <= room ? text : `${chars.slice(0, Math.max(room - 1, 0)).join('')}${ELLIPSIS}`
+}
+
+// One line per agent: the status is cut so the name and the time always show.
+const agentRow = (agent: PlanAgent, columns: number) => {
+  const head = `${agent.type.split(':').pop()} · `
+  const time = agent.durationMs === null ? '' : ` · ${formatDuration(agent.durationMs)}`
+  const room = columns - AGENT_INDENT - [...head].length - [...time].length
+  return `${head}${fit(agent.result ?? 'running', Math.max(room, 1))}${time}`
+}
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -135,26 +149,43 @@ export const register: Register = on => {
     const { Box, Text } = $.ui.resolve(e)
     const { value: plan = EMPTY_PLAN } = await $.state.get(PLAN)
     const task = plan.current
+    const steps = task === null ? [] : stepsOf(task)
+    const done = steps.filter(step => step.status === 'done').length
+    const columns = e.props.bodyColumns
 
     return (
       <Box flexDirection="column">
         {task === null && <Text dimColor>No plan yet.</Text>}
-        {task !== null && <Text bold>{taskRow(task)}</Text>}
+        {task !== null && (
+          <Box flexDirection="column" marginBottom={1}>
+            <Text bold wrap="truncate-end">{taskRow(task)}</Text>
+            <Text>
+              {steps.map(step => (
+                <Text dimColor={step.status !== 'done'}>{`${SEGMENT[step.status === 'done' ? 'done' : 'pending']} `}</Text>
+              ))}
+              <Text dimColor>{` ${done}/${steps.length}`}</Text>
+            </Text>
+          </Box>
+        )}
         {task?.phases.map(phase => (
-          <Box flexDirection="column">
-            {phase.title !== null && <Text bold>{phase.title}</Text>}
+          <Box flexDirection="column" marginBottom={1}>
+            {phase.title !== null && <Text dimColor wrap="truncate-end">{phase.title}</Text>}
             {phase.steps.map(step => (
               <Box flexDirection="column">
-                <Text dimColor={step.status === 'done'}>{stepRow(step)}</Text>
+                <Text dimColor={step.status === 'done'} wrap="truncate-end">{stepRow(step)}</Text>
                 {step.agents.map(agent => (
-                  <Text dimColor>{agentRow(agent)}</Text>
+                  <Box paddingLeft={AGENT_INDENT}>
+                    <Text dimColor wrap="truncate-end">{agentRow(agent, columns)}</Text>
+                  </Box>
                 ))}
               </Box>
             ))}
           </Box>
         ))}
-        {plan.finished.map(done => (
-          <Text dimColor>{`${TICK} ${done.title}${issueOf(done.issue)} · ${formatDuration(done.durationMs)}`}</Text>
+        {plan.finished.map(folded => (
+          <Text dimColor wrap="truncate-end">
+            {`${TICK} ${folded.title}${issueOf(folded.issue)} · ${formatDuration(folded.durationMs)}`}
+          </Text>
         ))}
       </Box>
     )
