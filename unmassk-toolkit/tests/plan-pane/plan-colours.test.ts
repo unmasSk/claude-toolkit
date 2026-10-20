@@ -1,5 +1,5 @@
-// #98 D-160: the pane in the colours of the Checklist mod's GIF. Done: a green disc
-// with a tick, the label dim and its HH:MM at the row's end; in progress: an orange
+// #98 D-160/D-161: the pane in the colours of the Checklist mod's GIF. Done: a green disc
+// with a tick, the label dim and how long the step took at the row's end; in progress: an orange
 // ring with a dot, the label bold; pending: a grey empty ring. The bar: green done,
 // orange in progress, grey the rest, the count dim at its right. Agents (D-159, kept):
 // amber for a fix round, red for an agent that failed or was interrupted.
@@ -33,7 +33,7 @@ const [DONE, RUNNING] = ISSUE_TASK.phases[0].steps
 const PENDING_STEP = ISSUE_TASK.phases[1].steps[0]!
 // The terminal reference draws its done mark in the named green.
 const TERMINAL_GREENS = [GREEN, 'green']
-// 14:03 on the person's clock; the HH:MM the test expects is written by hand below.
+// 14:03 on the person's clock: a done step must show how long it took, never a clock time (D-161).
 const START = new Date(2026, 9, 20, 14, 3).getTime()
 const MINUTE = 60_000
 
@@ -112,12 +112,16 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(labelOf(PENDING_STEP.title), 'the pending label').toMatchObject({ bold: false, dim: false })
   })
 
-  test(`should_end_each_done_row_with_the_time_it_was_done_dim_on_the_${surface}`, async ($, on) => {
+  // D-161: the duration runs from the step's start (in_progress) to its tick; written by hand.
+  test(`should_end_each_done_row_with_how_long_the_step_took_dim_never_a_clock_time_on_the_${surface}`, async ($, on) => {
     const { opens, clock } = await startSession($, on, START)
     await callPlan($, { task: ISSUE_TASK })
     await clock.advance(2 * MINUTE)
+    await callPlan($, { step: DONE!.id, status: 'in_progress' })
+    await clock.advance(16 * MINUTE)
     await callPlan($, { step: DONE!.id, status: 'done' })
-    await clock.advance(1 * MINUTE)
+    await callPlan($, { step: RUNNING!.id, status: 'in_progress' })
+    await clock.advance(45_000)
     await callPlan($, { step: RUNNING!.id, status: 'done' })
     await callPlan($, { step: PENDING_STEP.id, status: 'in_progress' })
     await clock.advance(40 * MINUTE)
@@ -126,11 +130,16 @@ for (const surface of ['terminal', 'desktop'] as const) {
     const lastRun = (title: string) => textLeaves(rowOf(tree, title).leaves).filter(leaf => leaf.text.trim() !== '').at(-1)
     const first = lastRun(DONE!.title)
     const second = lastRun(RUNNING!.title)
+    const clockTime = /\b\d{1,2}:\d{2}\b/
 
-    expect(first?.text.trim(), `2.1 done at 14:05, at the row's end: ${JSON.stringify(rowOf(tree, DONE!.title).leaves)}`).toMatch(/(^|\s)14:05$/)
-    expect(second?.text.trim(), '2.2 done at 14:06, its own time, not the time drawn').toMatch(/(^|\s)14:06$/)
-    expect([first?.paint.dim, second?.paint.dim], 'the times dim').toEqual([true, true])
-    expect(rowOf(tree, PENDING_STEP.title).leaves.some(leaf => leaf.kind === 'text' && /\b\d{2}:\d{2}\b/.test(leaf.text)), 'no time on the step in progress').toBe(false)
+    expect(first?.text.trim(), `2.1 took 16 min, at the row's end: ${JSON.stringify(rowOf(tree, DONE!.title).leaves)}`).toMatch(/(^|\s)16 min$/)
+    expect(second?.text.trim(), '2.2 took 45 s, from its own start, not the task start nor now').toMatch(/(^|\s)45 s$/)
+    expect([first?.paint.dim, second?.paint.dim], 'the durations dim').toEqual([true, true])
+    expect(
+      [DONE!.title, RUNNING!.title].filter(title => rowOf(tree, title).leaves.some(leaf => leaf.kind === 'text' && clockTime.test(leaf.text))),
+      'no clock time (HH:MM) on a done step',
+    ).toEqual([])
+    expect(rowOf(tree, PENDING_STEP.title).leaves.some(leaf => leaf.kind === 'text' && /\b\d+ (s|min)\b/.test(leaf.text)), 'no duration on the step in progress').toBe(false)
   })
 }
 
@@ -253,5 +262,19 @@ for (const surface of ['terminal', 'desktop'] as const) {
       `interrupted and failed in red: ${JSON.stringify(STOPPED.map(agent => rowOf(tree, agent.name).leaves))}`,
     ).toEqual([RED, RED])
     expect([AMBER, RED], 'the clean answer neither').not.toContain(resultPaint('ultron', 'GREEN — built')?.color)
+  })
+
+  // Amber is only the ↻N fix-round mark: no 'finding' is guessed from an answer's words.
+  test(`should_not_paint_an_agent_amber_for_the_words_of_its_answer_on_the_${surface}`, async ($, on) => {
+    const { opens } = await startSession($, on, START)
+    await callPlan($, { task: ISSUE_TASK })
+    await callPlan($, { step: DONE!.id, status: 'in_progress' })
+    await spawnAgent($, 'a1', 'unmassk-toolkit:cerberus')
+    await endAgent($, 'a1', 'NOT MERGEABLE — 2 issues, one finding', MINUTE)
+
+    const tree = await drawn($, opens[0]!.id, surface)
+    const leaves = rowOf(tree, 'cerberus').leaves
+
+    expect(textLeaves(leaves).filter(leaf => leaf.paint.color === AMBER), `nothing amber on the row: ${JSON.stringify(leaves)}`).toEqual([])
   })
 }
