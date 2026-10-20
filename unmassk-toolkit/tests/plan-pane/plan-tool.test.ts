@@ -3,6 +3,7 @@
 import { test, expect } from 'claude-code/testing'
 import {
   ISSUE_TASK,
+  PLAN_TOOL,
   SURFACES,
   TICK,
   callPlan,
@@ -28,12 +29,25 @@ test('should_register_the_plan_tool_with_the_arguments_the_model_sends', async (
 })
 
 test('should_offer_the_plan_tool_from_the_start_not_behind_tool_search', async ($, on) => {
-  const { registered } = await startSession($, on)
+  // The bottom places tools as the engine does for an MCP tool: behind ToolSearch.
+  const described: string[] = []
+  on('tool.describe', async (_$: unknown, e: any) => {
+    described.push(e.tool)
+    return { description: `engine text for ${e.tool}`, isDeferred: true }
+  })
+  await startSession($, on)
+  const asked = (tool: string) =>
+    $.tool.describe({ tool, description: 'd', isDeferred: true, provider: { plugin: 'engine', tier: 'core' } } as any)
 
-  const plan = registered.find(spec => spec.name === 'plan')
+  // tool.describe is what the engine reads to place a tool (2.1.287 drops isDeferred at tool.register).
+  const plan = await asked(PLAN_TOOL)
+  const other = await asked('mcp__other-server__tool')
 
   // Deferred, the model would have to search for the tool before it could send the task (phase 5).
-  expect(plan?.isDeferred, 'the model sees the plan tool from the start').toBe(false)
+  expect(plan.isDeferred, 'the model sees the plan tool from the start').toBe(false)
+  expect(plan.description, "the engine's description kept").toBe(`engine text for ${PLAN_TOOL}`)
+  expect(other.isDeferred, 'only the plan tool is pinned in front').toBe(true)
+  expect(described, 'both asks reached the engine beneath').toEqual([PLAN_TOOL, 'mcp__other-server__tool'])
 })
 
 test('should_draw_title_issue_phases_and_steps_in_order_when_the_model_sends_the_whole_task', async ($, on) => {
