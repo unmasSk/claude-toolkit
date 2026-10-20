@@ -2,7 +2,15 @@ export type PlanStatus = 'pending' | 'in_progress' | 'done'
 
 export type PlanAgent = { id: string; type: string; result: string | null; durationMs: number | null }
 
-export type PlanStep = { id: string; title: string; status: PlanStatus; rounds: number; agents: PlanAgent[] }
+// doneAt: when the step was ticked (ms), null while it is not done.
+export type PlanStep = {
+  id: string
+  title: string
+  status: PlanStatus
+  rounds: number
+  doneAt: number | null
+  agents: PlanAgent[]
+}
 
 // A plain task (D-152) has one phase whose title is null.
 export type PlanPhase = { title: string | null; steps: PlanStep[] }

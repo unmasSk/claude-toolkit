@@ -43,6 +43,7 @@ Checked against the tree on 2026-10-16. If one stops being true, delete the line
 - Any `$.state` key fails `validate` unless plugin.json names a `"types"` .d.ts declaring it in PluginState.
 - No tsc on this machine: a mod's type-check stays UNVERIFIED unless one is installed.
 - plan-agents tests pin the agent's whole first answer line in its row: a "first word only" status turns them red.
+- In the test kit `$.ui.resolve(e)` on the terminal still hands back an `Svg` that draws nothing: branch on `e.surface`, never on whether Svg exists.
 
 ## chatroom/
 - Bun `mock.module()` leaks across test files: assert on DB state, or use a `_setXForTesting()` setter.

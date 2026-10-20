@@ -1,7 +1,7 @@
 // What the plan tool and the agent events do to the plan the pane draws (D-150..D-153).
 import type { TurnCompleteReason } from 'claude-code'
 
-import type { FoldedTask, Plan, PlanPhase, PlanStatus, PlanStep, PlanTask } from './plan-pane-state'
+import type { FoldedTask, Plan, PlanAgent, PlanPhase, PlanStatus, PlanStep, PlanTask } from './plan-pane-state'
 
 export const EMPTY_PLAN: Plan = { current: null, finished: [] }
 
@@ -36,7 +36,7 @@ const readSteps = (raw: unknown, where: string): PlanStep[] | string => {
   for (const one of raw) {
     const id = typeof one?.id === 'number' ? String(one.id) : one?.id
     if (!isText(id) || !isText(one?.title)) return `every step of ${where} needs an id and a title`
-    steps.push({ id, title: one.title, status: 'pending', rounds: 0, agents: [] })
+    steps.push({ id, title: one.title, status: 'pending', rounds: 0, doneAt: null, agents: [] })
   }
   return steps
 }
@@ -88,6 +88,8 @@ export const applyStatus = (plan: Plan, stepId: unknown, status: unknown, now: n
   const step = stepsOf(current).find(one => keyOf(one.id) === keyOf(id))
   if (step === undefined) return { error: `the task "${current.title}" has no step "${id}"` }
   step.status = status
+  // A step ticked again keeps the time it was first done; one reopened loses it.
+  step.doneAt = status === 'done' ? (step.doneAt ?? now) : null
   // A finished step keeps its tick and rounds; its agents leave (D-151).
   if (step.status === 'done') step.agents = []
   const isFinished = stepsOf(current).every(one => one.status === 'done')
@@ -113,10 +115,15 @@ export const addAgent = (plan: Plan, agentId: string, type: string): Plan => {
   return { ...plan, current }
 }
 
+const INTERRUPTED = 'interrupted'
+const FAILED = 'failed'
+
+export const isStopped = (agent: PlanAgent) => agent.result === INTERRUPTED || agent.result === FAILED
+
 // An agent stopped before its answer shows how it ended, never a partial answer as its result.
 const resultOf = (answer: string, reason: TurnCompleteReason) => {
-  if (reason === 'aborted') return 'interrupted'
-  if (reason !== 'answer') return 'failed'
+  if (reason === 'aborted') return INTERRUPTED
+  if (reason !== 'answer') return FAILED
   return answer.split('\n').find(line => line.trim() !== '')?.trim() ?? ''
 }
 
