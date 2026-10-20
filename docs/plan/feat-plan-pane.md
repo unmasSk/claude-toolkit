@@ -6,6 +6,7 @@
 **Build mode:** test-first
 **Base:** c81f1d08
 **Created:** 2026-10-20
+**Status: COMPLETED** — 2026-10-20; 45 mod tests green; seen live by Bex (own column beside the session sidebar, M-163)
 
 ## Goal
 A mod shipped with the toolkit draws, in a right side pane of the desktop app, the current task whole (issue or plain request, phases, steps), ticking each step as it ends, with the agents only under the step in progress.
@@ -49,7 +50,7 @@ Yes: what the model sends to the mod's plan tool is kept in the mod's state and 
 ### Phase 5: Claude uses it
 **Depends on:** Phase 2
 - [x] 5.1 Orchestrator: core and flow tell Claude to send every multi-step task to the pane before starting and to tick each step as it ends; show Bex the diff
-- [ ] 5.2 verify through the owner's door: a fresh desktop session doing a real task shows it in the pane, step by step
+- [x] 5.2 verify through the owner's door: a fresh desktop session doing a real task shows it in the pane, step by step
 
 ## Wave map
 - Wave 1: Phase 1

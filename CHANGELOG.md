@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Plan pane in the desktop app** (#98, D-149 to D-155, M-163): a mod shipped with `unmassk-toolkit` opens its own column beside the desktop session sidebar (a mod cannot draw inside that sidebar) and shows the current task whole, with its issue or the plain request, phases and steps, ticking each step as it ends and showing the agents only under the step in progress; a finished task stays until the next one starts, then folds to one line.
+- **`mcp__unmassk-toolkit__plan` tool**: Claude sends the whole task once before starting and then marks each step `in_progress` or `done`; `unmassk-core` and `unmassk-flow` now tell Claude to do it for every task of more than one step, so the pane replaces the app's task list as the visible list.
+
 ## [1.51.1] - 2026-10-20
 
 ### Fixed
