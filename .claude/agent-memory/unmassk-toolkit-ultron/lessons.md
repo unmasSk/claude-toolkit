@@ -14,3 +14,4 @@ The full chronicle (2026-03 to 2026-08) was distilled on 2026-10-16; the old tex
 - Wrote a fail-open wrapper inside a helper and called it safe — the cache can hold an older copy that raises before the wrapper runs; guard at the caller.
 - Wrote the memory index as paragraphs — every session paid for it; one short phrase per line.
 - Ran `rm` in the same batch as a Write that a hook then blocked — the delete went through, the write did not; delete only after the new file is confirmed on disk.
+- Did two replace+write passes on one file from the same original string in a python script — the second write erased the first; re-read or chain the string between writes.

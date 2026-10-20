@@ -120,9 +120,10 @@ def _replaces_line(note: Note) -> list[str]:
     de la nota NUEVA, con el texto literal ``sustituye a {old_id}`` --
     espejo exacto de ``nace de {root_id}`` que ``_cluster_lines`` (regla
     4) ya usa para el otro sentido del mismo tipo de puntero. Una nota
-    sin ``replaces`` no imprime nada -- ninguna linea, nunca una vacia.
+    sin ``replaces``, o con ``none`` (conviven, no apunta a nada), no
+    imprime nada -- ninguna linea, nunca una vacia.
     """
-    if not note.replaces:
+    if not note.replaces or note.replaces == "none":
         return []
     return [f"{_BODY_INDENT}sustituye a {note.replaces}"]
 

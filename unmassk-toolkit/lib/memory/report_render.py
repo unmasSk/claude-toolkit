@@ -150,7 +150,7 @@ def _cluster_block(cluster: Cluster) -> list[str]:
             pointer = f"replaced by {root.id}"
         elif child.origin:
             pointer = f"Origin {', '.join(child.origin)}"
-        elif child.replaces:
+        elif child.replaces and child.replaces != "none":
             pointer = f"replaces {child.replaces}"
         else:
             pointer = ""

@@ -39,7 +39,7 @@ def _status_suffix(note: Note, archived: bool) -> str:
       que YA usa el sistema para el mismo estado en otros dos sitios
       (cabecera de ``--id``, ``report_render_note.py``; hijo de racimo,
       ``report_render._cluster_block``), nunca un glifo nuevo.
-    - ``(↺ {old_id})``, si ``note.replaces`` esta puesto -- la flecha de
+    - ``(↺ {old_id})``, si ``note.replaces`` es un id (``none`` no) -- la flecha de
       vuelta hacia la nota que sustituyo, visible SIN ``--todo`` (la
       nota nueva es vigente y ya aparece por defecto).
 
@@ -50,7 +50,7 @@ def _status_suffix(note: Note, archived: bool) -> str:
     parts: list[str] = []
     if archived:
         parts.append("archivada")
-    if note.replaces:
+    if note.replaces and note.replaces != "none":
         parts.append(f"(↺ {note.replaces})")
     if not parts:
         return ""
