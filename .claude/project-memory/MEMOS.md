@@ -142,3 +142,4 @@
 [M-163][hooks][skills] a mod cannot draw inside the desktop session sidebar, only its own pane
 [M-164][memory][architecture] R.17 dead-ends: the overlap bounce is the relaunch text, not the gate
 [M-165][hooks][design] a mod reads 5h and weekly limits from session.usage rateLimits
+[M-166][ci][release] CI workflows disabled on GitHub by Bex's order; releases run no CI
