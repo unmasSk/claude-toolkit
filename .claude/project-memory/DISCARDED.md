@@ -156,3 +156,4 @@
 [X-156][memory][architecture] skip the overlap gate for Q, X, I and B
 [X-157][memory][architecture] let X accept --replaces with an id
 [X-158][hooks][design] copy MaeharaTakumi/claude-usage-band
+[X-159][hooks][design] justmorenoise/claude-code-limits as base
