@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.55.1] - 2026-10-20
+
 ### Changed
 
 - **Usage bars move under the plan in the side pane** (D-167): the session and week bars are drawn by the plan pane below the plan instead of in a band above the prompt, which is removed; the cut from usage-band (D-166) stays, only the place changes.
