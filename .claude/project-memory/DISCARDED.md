@@ -153,3 +153,4 @@
 [X-153][install][memory] keep committing on any branch
 [X-154][hooks][skills] install the Flightdeck mod
 [X-155][hooks][skills] a pane line showing each agent's current action, swarm-style
+[X-156][memory][architecture] skip the overlap gate for Q, X, I and B
