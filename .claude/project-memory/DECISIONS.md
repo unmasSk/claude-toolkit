@@ -114,3 +114,4 @@
 [D-145][memory][testing] gitmem remove refuses a duplicated id; --commit picks one note
 [D-148][memory][boot] boot alarms a repeated id only while two or more copies are live
 [D-149][hooks][skills] a toolkit mod shows the plan in a side pane; the gate reads it
+[D-150][hooks][skills] the side pane shows the whole task (issue) plus each agent's work and tally
