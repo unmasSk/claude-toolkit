@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.52.0] - 2026-10-20
+
 ### Added
 
 - **Plan pane in the desktop app** (#98, D-149 to D-155, M-163): a mod shipped with `unmassk-toolkit` opens its own column beside the desktop session sidebar (a mod cannot draw inside that sidebar) and shows the current task whole, with its issue or the plain request, phases and steps, ticking each step as it ends and showing the agents only under the step in progress; a finished task stays until the next one starts, then folds to one line.
