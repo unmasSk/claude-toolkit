@@ -28,8 +28,14 @@ const isIssue = (value: unknown): value is number | null =>
 
 export const stepsOf = (task: PlanTask): PlanStep[] => task.phases.flatMap(phase => phase.steps)
 
-export const pendingSteps = (plan: Plan): PlanStep[] =>
-  plan.current === null ? [] : stepsOf(plan.current).filter(step => step.status !== 'done')
+// What the close gate counts: the steps not done before the first one in progress, or every
+// step not done when none is in progress (D-163).
+export const pendingSteps = (plan: Plan): PlanStep[] => {
+  if (plan.current === null) return []
+  const steps = stepsOf(plan.current)
+  const running = steps.findIndex(step => step.status === 'in_progress')
+  return (running === -1 ? steps : steps.slice(0, running)).filter(step => step.status !== 'done')
+}
 
 const readSteps = (raw: unknown, where: string): PlanStep[] | string => {
   if (!Array.isArray(raw) || raw.length === 0) return `${where} has no steps`
