@@ -85,3 +85,4 @@
 2026-10-20  [D-146][hooks][skills] 🧭 checklist gate also reads the desktop app's task list (R.1)  →  replaced by D-149
 2026-10-20  [D-159][hooks][skills] 🧭 plan pane colours: green done, blue in progress, amber findings, red failed  →  replaced by D-160
 2026-10-20  [D-160][hooks][skills] 🧭 plan pane follows the GIF: green done, orange in progress, grey pending  →  replaced by D-161
+2026-10-20  [D-166][hooks][design] 🧭 usage mod base: MoonZhe/usage-band, cut to two bars, percent only  →  replaced by D-168
