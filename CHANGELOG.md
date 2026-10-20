@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **The plan pane refuses to close work while steps are pending** (D-156): while the pane's task has steps not done, `gh issue close`, `bin/release.py` (without `--dry-run`) and `gitmem next` are denied naming the pending steps, and if the plan cannot be read they are denied with the reason; checked live on 2026-10-20. Known gap: a closing command quoted after a separator inside another command's text is still refused.
+
 ## [1.52.0] - 2026-10-20
 
 ### Added
