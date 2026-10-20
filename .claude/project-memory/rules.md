@@ -38,3 +38,4 @@
 [remember][claude] 🧠 When Bex asks for speed, skip the full review pipeline unless the change can lose data or corrupt memory. — «te he dicho rapido y no lo estas haciendo rapido... una cosa muy muy sencilla, como ponerle una coma a un documento MD... me parece una falta de respeto cuando te he dicho que tengo prisa»
 [remember][user] 🧠 Write cards, skills and prompts in English. When you change one, show Bex the diff. — «si en ingles como siempre, pero a mi me los das en castellano, pero siobretodo lo que necesito es el diff ver en que ha cambiado eso es lo que mas necesito»
 [remember][user] 🧠 When Bex says the context is at 80-90 %, finish the work in progress. Leave the session open. — «No, el que te avisa del 80-90% del contexto soy yo. Tú no puedes mirar el contexto.»
+[remember][user] 🧠 Never publish a release (it starts CI) for a small change; only for an enormously big one — «Y no se te ocurra sacar el CI más hasta que no haya un cambio enormemente grande.»
