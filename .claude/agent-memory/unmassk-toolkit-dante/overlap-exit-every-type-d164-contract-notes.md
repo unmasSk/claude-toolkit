@@ -34,3 +34,7 @@ R.17 step 4.2 (2026-10-20), Moriarty fix pass: `relaunch_fidelity_support.py` + 
 - issue_not_found needs a fake gh whose stderr says "Could not resolve to an issue or pull request" (exit 1); any other stderr becomes "no se pudo comprobar".
 - note.py `_relaunch_words` fallback is reached with a zone name holding an apostrophe (zones.json accepts it).
 - Mutant copies need `git init` + an empty commit, or every test errors (conftest real-repo guard): put init/commit in a scratch .py file and run it; the customs hook scans even inline heredoc text for `git commit`.
+
+R.17 step 4.4 (2026-10-20), Yoda T3: pain relaunch drops `--why`. Class `TestPainQuestionRelaunchKeepsTheWhy` in `test_gate_relaunch_saves_what_was_given.py`.
+- Pain gate runs before field validation: `note M --why W --stops yes` reaches the wrong-type branch (R line), never "why not allowed". Both pain branches are testable with a Why.
+- Green guards: the M line must never carry `--why` (pasted it would bounce); expected M fields = given minus Why.

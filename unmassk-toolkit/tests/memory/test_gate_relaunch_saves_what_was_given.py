@@ -146,6 +146,50 @@ class TestPainQuestionRelaunchKeepsTheIssue:
         assert saved_fields(tmp_repo, extract_note_id(out)) == expected_fields(given)
 
 
+class TestPainQuestionRelaunchKeepsTheWhy:
+    """Yoda's T3 (step 4.4): a --why given before the --stops answer reaches
+    the R line, and only the R line -- M takes no Why (memory skill's field table)."""
+
+    R_GIVEN = {"--description": DESCRIPTION, "--why": WHY, "--keys": KEYS}
+
+    def test_should_carry_the_given_why_on_the_wall_line_when_r_misses_the_stops_answer(self, tmp_repo, gh_env):
+        tokens = _line_with(_bounce(tmp_repo, gh_env, "R", self.R_GIVEN), "--stops", "yes")
+
+        assert flag_values(tokens, "--why") == [WHY], tokens
+
+    def test_should_save_the_given_why_when_the_wall_line_is_pasted_as_printed(self, tmp_repo, gh_env):
+        tokens = _line_with(_bounce(tmp_repo, gh_env, "R", self.R_GIVEN), "--stops", "yes")
+
+        rc, out = gitmem(tokens, tmp_repo, gh_env)
+
+        assert rc == 0, f"the wall line pasted as printed bounced: {tokens}\n{out}"
+        assert saved_fields(tmp_repo, extract_note_id(out)) == expected_fields(self.R_GIVEN)
+
+    def test_should_save_the_given_why_when_m_answered_yes_and_the_wall_line_is_pasted(self, tmp_repo, gh_env):
+        given = {**self.R_GIVEN, "--stops": "yes"}
+        tokens = single_relaunch(_bounce(tmp_repo, gh_env, "M", given))
+
+        rc, out = gitmem(tokens, tmp_repo, gh_env)
+
+        assert flag_values(tokens, "--why") == [WHY], tokens
+        assert rc == 0, f"the wall line pasted as printed bounced: {tokens}\n{out}"
+        assert saved_fields(tmp_repo, extract_note_id(out)) == expected_fields(self.R_GIVEN)
+
+    def test_should_leave_why_off_the_memo_line_so_it_saves_when_pasted(self, tmp_repo, gh_env):
+        tokens = _line_with(_bounce(tmp_repo, gh_env, "R", self.R_GIVEN), "--stops", "no")
+
+        rc, out = gitmem(tokens, tmp_repo, gh_env)
+
+        assert "--why" not in tokens, tokens
+        assert rc == 0, f"the memo line pasted as printed bounced: {tokens}\n{out}"
+        assert saved_fields(tmp_repo, extract_note_id(out)) == {"Description": DESCRIPTION, "Keys": ", ".join(KEYS)}
+
+    def test_should_leave_why_off_the_memo_line_when_r_answered_no(self, tmp_repo, gh_env):
+        tokens = single_relaunch(_bounce(tmp_repo, gh_env, "R", {**self.R_GIVEN, "--stops": "no"}))
+
+        assert "--why" not in tokens, tokens
+
+
 class TestBlockerAwaitsOnTheGateRelaunch:
     @pytest.mark.parametrize("trigger", [{"--work": "no"}, {"--issue": "none"}], ids=["work", "issue-none"])
     def test_should_carry_the_given_awaits_when_b_bounces_on_the_gate(self, tmp_repo, gh_env, trigger):
