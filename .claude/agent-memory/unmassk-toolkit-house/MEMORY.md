@@ -5,4 +5,4 @@ Last compaction pass: 2026-08-25 (every claim re-checked against the tree).
 
 - [toolkit-ci-and-tests.md](toolkit-ci-and-tests.md) — a red CI or a red suite in unmassk-toolkit: which reds are the harness and which the product, the three CI env variables, encoding/Windows/git-fixture families, the static gates
 - [toolkit-windows-harness.md](toolkit-windows-harness.md) — Windows-only reds where the test harness is POSIX-only: PATH stubs, shlex backslashes, shell=True, HOME, CRLF, autocrlf
-- [craft-and-other-projects.md](craft-and-other-projects.md) — method that travels: verification laws, the search tools' blind spots on this machine, Claude Code forensics, hook timeouts read from the transcript, plus the findings from agent-chatroom (`chatroom/`) and omawaMapas
+- [craft-and-other-projects.md](craft-and-other-projects.md) — method that travels: verification laws, search-tool blind spots, Claude Code forensics (desktop engine binary, mod store, rate limits), hook timeouts, plus agent-chatroom (`chatroom/`) and omawaMapas

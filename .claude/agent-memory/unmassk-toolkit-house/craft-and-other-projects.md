@@ -74,6 +74,22 @@ used" by counting `TodoWrite` tool_use is measuring the wrong tool; the board in
 2.1.233 and comes back only behind an env var — so "`~/.claude/todos/` does not exist" is
 version-and-config dependent, not a permanent fact.
 
+**Desktop sessions run their own engine, not the CLI on PATH** (2026-10-20). The session the owner
+works in is `entrypoint: claude-desktop` (see `~/.claude/sessions/<pid>.json`, field `version`),
+and its binary is `~/Library/Application Support/Claude/claude-code/<ver>/<hash>/claude.app/
+Contents/MacOS/claude`. Read contracts from THAT binary. The CLI on PATH may be another version
+and its OAuth may be expired, so `claude -p` cannot reproduce anything account-bound (rate limits).
+
+**A mod's `$.store` is a live state probe** (2026-10-20): `~/.claude/plugins/store/<plugin>_<marketplace>-<hash>.json`,
+rewritten on every `set`. `stat` gives when, `cat` gives what the hook wrote. For a pass-through
+hook it is an instrumentation point for free: no edit, no hot reload of the user's session.
+
+**Usage bars that disagree with claude.ai** (2026-10-20): mod `rateLimits` and the status line
+`rate_limits` come from one engine function, built from the API's `anthropic-ratelimit-unified-5h/7d`
+headers: percent = min(round(util*1000)/10, 100), ISO resetsAt, the full list every time, expired
+windows dropped. A mod's figure is the engine's. Check the window's `resetsAt` before you blame the
+code: a reset ~5 h out means a window that just started.
+
 ## A hook's `updatedInput` cannot be confirmed or denied from the parent transcript
 
 CONFIRMED 2026-07-12, first-party. Two structural facts about
