@@ -13,6 +13,7 @@ import {
   markOf,
   mountPane,
   progressOf,
+  rowsOf,
   rowIndex,
   startSession,
 } from './plan-kit.ts'
@@ -33,9 +34,9 @@ const CUT_WRAPS = ['truncate', 'truncate-end', 'end']
 
 const barNow = async ($: any, paneId: string, surface: (typeof SURFACES)[number]) => {
   const ui = await mountPane($, paneId, surface)
-  const rows = await drawnRows(ui)
+  const tree = await ui.drawn()
   await ui.unmount()
-  return { rows, bar: progressOf(rows) }
+  return { rows: rowsOf(tree), bar: progressOf(tree) }
 }
 
 test('should_draw_a_bar_of_one_segment_per_step_with_the_count_beside_it_under_the_task', async ($, on) => {
@@ -54,6 +55,7 @@ test('should_draw_a_bar_of_one_segment_per_step_with_the_count_beside_it_under_t
   }
 })
 
+// D-160 marks the step in progress's segment apart (orange) from both pending and done.
 test('should_fill_one_segment_per_done_step_and_never_count_a_step_in_progress', async ($, on) => {
   const { opens } = await startSession($, on)
   await callPlan($, { task: ISSUE_TASK })
@@ -67,10 +69,12 @@ test('should_fill_one_segment_per_done_step_and_never_count_a_step_in_progress',
   for (const step of STEPS.slice(1)) await callPlan($, { step: step.id, status: 'done' })
   const all = (await barNow($, opens[0]!.id, 'desktop')).bar
 
-  expect([running.done, running.total, running.segments], 'a step in progress fills nothing').toEqual([0, 3, fresh.segments])
+  expect([running.done, running.total], 'a step in progress counts nothing').toEqual([0, 3])
+  expect(running.segments.slice(1), 'the rest stay pending').toEqual(fresh.segments.slice(1))
   expect([one.bar.done, one.bar.total], `1 of 3 after one step: ${JSON.stringify(one.rows)}`).toEqual([1, 3])
   expect(one.bar.segments[0], 'the done step fills its segment').not.toEqual(pendingGlyph)
   expect(one.bar.segments.slice(1), 'the other two stay pending').toEqual([pendingGlyph, pendingGlyph])
+  expect([pendingGlyph, one.bar.segments[0]], 'the step in progress is marked as neither pending nor done').not.toContain(running.segments[0])
   expect([all.done, all.total], '3 of 3 when every step is done').toEqual([3, 3])
   expect(all.segments, 'every segment filled').toEqual([one.bar.segments[0], one.bar.segments[0], one.bar.segments[0]])
 })
