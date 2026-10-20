@@ -305,3 +305,69 @@ def test_should_say_so_in_next_boot_report_after_upgrade_left_changes_on_protect
         f"expected exactly one report line about the uncommitted install, got {lines}\n"
         + run.report()
     )
+
+
+# --------------------------------------------------------------------------
+# The marker the protected install leaves for the boot
+# --------------------------------------------------------------------------
+
+
+def _install_left_uncommitted_files(report_text):
+    """The indented lines under the uncommitted-install report line."""
+    lines = report_text.splitlines()
+    flagged = _install_left_uncommitted_lines(report_text)
+    heads = [i for i, line in enumerate(lines) if line in flagged]
+    assert len(heads) == 1, f"expected one uncommitted-install line:\n{report_text}"
+    files = []
+    for line in lines[heads[0] + 1:]:
+        if not line.strip().startswith("- "):
+            break
+        files.append(line.strip()[2:])
+    return files
+
+
+def test_should_not_blame_install_for_owner_edit_when_install_later_committed_on_work_branch(
+    tmp_path, gh_stub
+):
+    # Bug caught: the marker survives the install that commits on an open
+    # branch, so the owner's own later edit to an install file is reported
+    # as an install left uncommitted.
+    repo = _new_repo(tmp_path)
+    first = _boot(repo, tmp_path, gh_stub, name="boot-main")
+    assert len(_install_left_uncommitted_lines(first.report())) == 1, (
+        "setup invalid: the protected install left no report line\n" + first.report()
+    )
+
+    _git(repo, "checkout", "-q", "-b", "feature/x")
+    done = subprocess.run(
+        [sys.executable, _INSTALLER, "--auto"], cwd=repo,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert _status(repo) == "", "setup invalid: the open-branch install did not commit\n" + _status(repo)
+
+    with open(os.path.join(repo, ".gitignore"), "a", encoding="utf-8") as fh:
+        fh.write("owner-scratch/\n")
+
+    run = _boot(repo, tmp_path, gh_stub, name="boot-feature")
+
+    assert _install_left_uncommitted_lines(run.report()) == [], run.report()
+
+
+def test_should_list_every_install_file_when_git_status_fails_at_boot(tmp_path, gh_stub):
+    # Bug caught: a failed `git status` turns the warning into silence
+    # while the install files still sit uncommitted.
+    repo = _new_repo(tmp_path)
+    _boot(repo, tmp_path, gh_stub, name="boot-install")
+    rc, _, err = run_git(["status", "--porcelain"], repo)
+    assert rc == 0, "setup invalid: git status failing before the corruption: " + err
+
+    # A corrupt index: `git status` fails, `git log` still answers.
+    with open(os.path.join(repo, ".git", "index"), "wb") as fh:
+        fh.write(b"not an index")
+    rc, _, _ = run_git(["status", "--porcelain"], repo)
+    assert rc != 0, "setup invalid: git status still succeeds on the corrupt index"
+
+    run = _boot(repo, tmp_path, gh_stub, name="boot-after")
+
+    assert sorted(_install_left_uncommitted_files(run.report())) == sorted(_INSTALL_FILES), run.report()
