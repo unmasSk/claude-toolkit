@@ -135,3 +135,4 @@
 [M-156][boot][docs] boot-read rules live in four sources; CLAUDE.md own part is split in two
 [M-157][memory][hooks] Hito 3 dead-ends: gate path, lifecycle machine bug, notes.replace
 [M-158][memory][architecture] Twin-id sweep dead-ends: next_id, restore, rezones remove, boot lines
+[M-159][hooks][skills] hooks see the app's update_plan calls; partial ones carry no full list
