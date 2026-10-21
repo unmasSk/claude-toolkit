@@ -36,6 +36,7 @@ Checked against the tree on 2026-10-16. If one stops being true, delete the line
 - A reviewer's "code-only" line count may leave out blank lines: check the floor with every docstring and comment removed before promising a file can reach 300 by cutting docstrings.
 - `--replaces none` stays the literal string "none" in `Note.replaces` (the overlap gate skips on non-None) and is persisted as `Replaces: none`: never normalise it to None before validation.
 - Rejecting `...` as note content in validate_fields breaks old tests that seed `description="..."` (test_relaunch_command_answer_amnesia): stop holes at the relaunch, not in the validator.
+- Any hooks.json entry change turns test_hooks_doc_references TestShippedPlugin red until `bin/hooks_doc_sync.py --write` regenerates skills/unmassk-memory/references/hooks.md: ask for that file in LIMITS.
 - `managed_blocks.py` BLOCKS[0]: the short restore body is intended; the longer one in git history is not the right one.
 
 ## Mods (plan-pane)
