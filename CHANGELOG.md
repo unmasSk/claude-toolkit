@@ -6,6 +6,15 @@
 
 - **Every agent receives the project's walls when it starts** (D-171): a SubagentStart hook, `unmassk-toolkit/hooks/subagent-walls.py`, hands the project's restrictions to each agent at launch, so none works without knowing them.
 - **Agent cards carry `ListAgents` and `SendMessage`** (#91): the 9 cards now allow a session started as an agent to message other sessions.
+- **Claude loads `unmassk-standards` at session start too**: the CLAUDE.md managed block, the boot report, the first-message reminder and `unmassk-core` now name it next to `unmassk-core` and `unmassk-memory`.
+
+### Changed
+
+- **The commit and merge gates run only on git commands** (`if: Bash(git *)` in `hooks.json`): every other shell call skips them.
+- **Flow rule 6 asks a real case for every finding** (zero in today's data is not «not in real use»), and Yoda's card asks the same; flow rule 9 makes enterprise quality the bar, pointing to `unmassk-standards` §2, with tests in proportion.
+- **The session-start instructions printed for Claude are in English**, like the rest of the boot texts.
+- **Code comments and docstrings are in English and kept to the minimum** across 67 files, with no code change; history and reasons live in git memory.
+- **House's card mentions the project's walls at start**, and the `unmassk-memory` skill table lists `--replaces none` for Q, X, I and B.
 
 ## [1.55.5] - 2026-10-21
 
