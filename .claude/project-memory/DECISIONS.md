@@ -133,3 +133,4 @@
 [D-170][hooks][design] pane B: usage card pinned at bottom, finished tasks in one count line
 [D-171][hooks][memory] a SubagentStart hook gives every agent the project's walls, nothing else
 [D-172][hooks][architecture] agent-sessions are tested with the parallel-sessions work, not now
+[D-173][memory][architecture] no memory outside a git project: sessions there save nothing, as today
