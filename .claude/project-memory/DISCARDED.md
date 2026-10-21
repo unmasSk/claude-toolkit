@@ -165,3 +165,4 @@
 [X-165][hooks][memory] inject nothing at agent start
 [X-166][hooks][memory] inject walls plus open incidents
 [X-167][hooks][architecture] test agent-sessions in the app now
+[X-168][memory][architecture] Claude Code's automatic memory files
