@@ -163,3 +163,4 @@
 [X-163][hooks][design] three stacked cards (option A)
 [X-164][hooks][design] cards with header strips (option C)
 [X-165][hooks][memory] inject nothing at agent start
+[X-166][hooks][memory] inject walls plus open incidents
