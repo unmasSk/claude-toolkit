@@ -235,6 +235,67 @@ class TestNeverStopsAnAgent:
         assert len(lines) == 1, stderr
         assert "RESTRICTIONS.md" in lines[0]
 
+    @pytest.mark.parametrize(
+        "cwd_field",
+        [{}, {"cwd": None}, {"cwd": ""}, {"cwd": 42}],
+        ids=["missing", "null", "empty", "not-a-string"],
+    )
+    def test_should_print_nothing_one_stderr_line_and_exit_0_when_payload_has_no_usable_cwd(
+        self, tmp_path, cwd_field
+    ):
+        # Bug caught: a crash on abspath(None/int), a silent swallow, or a fallback
+        # to the process cwd that hands the agent walls from a guessed project.
+        project = tmp_path / "project"
+        write_index(project, [_INDEX_HEADER, "", "[R-001][a][b] wall of the process cwd"])
+        payload = make_payload(project)
+        del payload["cwd"]
+        payload.update(cwd_field)
+        assert_hook_exists()
+
+        rc, stdout, stderr = run_hook_raw(HOOK, json.dumps(payload), cwd=str(project))
+
+        assert rc == 0
+        assert stdout == ""
+        assert len(stderr.strip().splitlines()) == 1, stderr
+
+    def test_should_print_nothing_one_stderr_line_naming_the_file_and_exit_0_when_not_utf8(self, tmp_path):
+        # Bug caught: UnicodeDecodeError crashes the hook, is swallowed in silence,
+        # or is papered over with replacement characters inside a wall.
+        project = tmp_path / "project"
+        path = write_index(project, [_INDEX_HEADER, ""])
+        path.write_bytes(path.read_bytes() + b"[R-001][a][b] bad byte \xff here\n")
+        assert_hook_exists()
+
+        rc, _parsed, stdout, stderr = run_hook(HOOK, make_payload(project), cwd=str(project))
+
+        assert rc == 0
+        assert stdout == ""
+        lines = stderr.strip().splitlines()
+        assert len(lines) == 1, stderr
+        assert "RESTRICTIONS.md" in lines[0]
+
+
+class TestLineEnds:
+
+    def test_should_keep_each_wall_exactly_as_written_when_the_index_has_crlf_line_ends(self, tmp_path):
+        # Bug caught: CRLF walls dropped, split into extra lines, or rewritten
+        # (\r stripped) instead of passed on exactly as the file holds them.
+        project = tmp_path / "project"
+        pm = project / ".claude" / "project-memory"
+        pm.mkdir(parents=True)
+        walls = [
+            "[R-001][hooks][memory] first wall",
+            "[R-002][hooks][memory] second wall",
+        ]
+        raw = "\r\n".join([_INDEX_HEADER, "", *walls]) + "\r\n"
+        (pm / "RESTRICTIONS.md").write_bytes(raw.encode("utf-8"))
+        assert_hook_exists()
+
+        rc, parsed, _out, stderr = run_hook(HOOK, make_payload(project), cwd=str(project))
+
+        assert rc == 0, stderr
+        assert_heading_then(context_lines(parsed), [w + "\r" for w in walls])
+
 
 # ── Round-trip against the real writer ─────────────────────────────────
 
@@ -272,7 +333,7 @@ def _save_wall(repo, headline):
 class TestRoundTripWithRealGitmem:
 
     def test_should_pass_walls_with_accents_quotes_and_guillemets_byte_for_byte(self, memory_repo):
-        # Bug caught: ascii-escaping, accent folding, quote mangling or re-encoding on the way out.
+        # Bug caught: accent folding, quote mangling or re-encoding on the way out.
         headlines = [
             'nunca «tocar» el "índice" a mano — lo escribe el script',
             "la configuración del niño: ‘comillas’ y ñandú, sin pérdida",
