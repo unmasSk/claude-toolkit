@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Every agent receives the project's walls when it starts** (D-171): a SubagentStart hook, `unmassk-toolkit/hooks/subagent-walls.py`, hands the project's restrictions to each agent at launch, so none works without knowing them.
+- **Agent cards carry `ListAgents` and `SendMessage`** (#91): the 9 cards now allow a session started as an agent to message other sessions.
+
 ## [1.55.5] - 2026-10-21
 
 ### Fixed
