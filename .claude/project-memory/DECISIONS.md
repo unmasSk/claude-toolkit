@@ -117,7 +117,6 @@
 [D-150][hooks][skills] the side pane shows the whole task (issue) plus each agent's work and tally
 [D-151][hooks][skills] pane layout: task, phases, steps; agents only under the step in progress
 [D-152][hooks][skills] work with no issue shows in the pane as a plain task titled by the request
-[D-153][hooks][skills] a finished task stays in the pane until the next starts, then folds to one line
 [D-154][hooks][skills] build the plan pane first, then the gate reading it
 [D-155][hooks][skills] the plan-pane mod is built with the Short procedure
 [D-156][hooks][skills] the gate stops closing work while the pane has steps unticked
@@ -131,3 +130,4 @@
 [D-167][hooks][design] usage bars live under the plan in the side pane, not above the prompt
 [D-168][hooks][design] the Sesión bar shows this session's context used, not the 5-hour limit
 [D-169][hooks][design] usage bars drawn as an instrument of 40 fine marks in the pane's colours
+[D-170][hooks][design] pane B: usage card pinned at bottom, finished tasks in one count line

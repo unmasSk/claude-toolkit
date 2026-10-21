@@ -87,3 +87,4 @@
 2026-10-20  [D-160][hooks][skills] 🧭 plan pane follows the GIF: green done, orange in progress, grey pending  →  replaced by D-161
 2026-10-20  [D-166][hooks][design] 🧭 usage mod base: MoonZhe/usage-band, cut to two bars, percent only  →  replaced by D-168
 2026-10-20  [R-024][release][testing] ⚠️ a release is not finished until its CI run is green on every OS  →  closed: Bex disabled CI on GitHub (M-166): a release is finished when published and installed, no CI wait
+2026-10-21  [D-153][hooks][skills] 🧭 a finished task stays in the pane until the next starts, then folds to one line  →  replaced by D-170
