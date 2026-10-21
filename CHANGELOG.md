@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.55.5] - 2026-10-21
+
 ### Fixed
 
 - **Usage marks now show on Desktop** (M-167): each mark was an Svg with an empty alt, which Desktop does not draw, so the bars looked empty; each mark now carries an alt.
