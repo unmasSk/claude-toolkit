@@ -28,7 +28,8 @@
           {
             "type": "command",
             "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/customs.py",
-            "timeout": 15
+            "timeout": 15,
+            "if": "Bash(git *)"
           }
         ],
         "matcher": "Bash"
@@ -48,7 +49,8 @@
           {
             "type": "command",
             "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/pre-merge-gate.py",
-            "timeout": 10
+            "timeout": 10,
+            "if": "Bash(git *)"
           }
         ],
         "matcher": "Bash"
