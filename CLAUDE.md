@@ -21,7 +21,7 @@ Bex's personal tool: the ground every one of his projects runs on. It is not a p
 7. **Don't get nervous.** On a minor incident, fix it and go on; no four-message operation over two temporary files.
 8. **An out-of-date document never stops work already done.** If a document says something is open and the code says it is closed, the code wins: fix the document and go on. It once cost a whole session.
 9. **What Bex says overrides any document, including ones presented as his decisions**: many were written by AIs in his name without asking him. Citing a document serves to warn that an earlier version exists, in one line; never as an argument or a brake.
-10. **An agent only gets what is written: its prompt, its card and the skills you paste into it.** The project memory never reaches it by itself; Bilbo, believing it did, never searched for what he needed.
+10. **An agent only gets what is written: its prompt, its card, the skills you paste into it, and the project's walls, which a hook hands it at start.** Nothing else of the project memory reaches it by itself; Bilbo, believing it did, never searched for what he needed.
 
 ## Commands
 
