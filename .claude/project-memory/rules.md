@@ -40,3 +40,4 @@
 [remember][user] 🧠 When Bex says the context is at 80-90 %, finish the work in progress. Leave the session open. — «No, el que te avisa del 80-90% del contexto soy yo. Tú no puedes mirar el contexto.»
 [remember][user] 🧠 Never publish a release (it starts CI) for a small change; only for an enormously big one — «Y no se te ocurra sacar el CI más hasta que no haya un cambio enormemente grande.»
 [remember][user] 🧠 Never give Bex a note or issue id as information: say what it is, give an example, and say what changes from today — «cuando me dices D71 o D200 tal, yo no entiendo nada. Me tienes que decir lo que es y un ejemplo y lo que cambia con respecto a lo de ahora. Tío, es la última vez que te lo voy a decir»
+[remember][user] 🧠 Enterprise quality is the bar: no over-engineering and no academic code — «Y añade, por favor, para el flow, que no haya sobre ingeniería, por favor, ni código académico. Con que sea Enterprise es suficiente.»
