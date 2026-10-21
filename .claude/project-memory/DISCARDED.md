@@ -160,3 +160,4 @@
 [X-160][hooks][design] Desktop context card copy (blue full-width line)
 [X-161][hooks][design] big numeral with hairline underline (option B)
 [X-162][hooks][design] single graduated ruler with two pointers (option C)
+[X-163][hooks][design] three stacked cards (option A)
