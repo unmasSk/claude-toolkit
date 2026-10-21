@@ -78,15 +78,15 @@ def main(argv):
     # salia en el primer mensaje de la sesion -- en un reinicio, con su
     # fichero-marca ya puesto, no salio ni una vez. Este canal es el unico
     # que se escribe entero en cada SessionStart, reinicio incluido.
-    print("[memory] ANTES DE RESPONDER AL USUARIO, y en este orden:")
-    print('  1. Skill tool con skill="unmassk-core"   (LLAMADA A HERRAMIENTA, no bash)')
-    print('  2. Skill tool con skill="unmassk-memory" (LLAMADA A HERRAMIENTA, no bash)')
-    print('  3. Skill tool con skill="unmassk-standards" (LLAMADA A HERRAMIENTA, no bash)')
-    print("  4. Lee el informe de abajo entero y cuentale el menu del dia.")
-    print("  NO saludes ni contestes nada antes de haber hecho los cuatro pasos.")
+    print("[memory] BEFORE ANSWERING THE USER, in this order:")
+    print('  1. Skill tool with skill="unmassk-core"      (TOOL CALL, not bash)')
+    print('  2. Skill tool with skill="unmassk-memory"    (TOOL CALL, not bash)')
+    print('  3. Skill tool with skill="unmassk-standards" (TOOL CALL, not bash)')
+    print("  4. Read the report below whole and give the user the menu of the day.")
+    print("  Do not greet or answer anything before the four steps are done.")
     print("")
-    print(f"[memory] el informe del arranque esta en {destination}")
-    print("Léelo entero antes de hacer nada. No está resumido.")
+    print(f"[memory] the boot report is at {destination}")
+    print("Read it whole before doing anything. It is not summarised.")
     return 0
 
 
