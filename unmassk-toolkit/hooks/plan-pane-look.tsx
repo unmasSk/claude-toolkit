@@ -180,25 +180,6 @@ const AgentRow = (ui: Ui, agent: PlanAgent, columns: number, now: number) => {
   )
 }
 
-// A block of the pane, as in Desktop's side panel: a hairline across, then a dim heading.
-export const Section = ({ Box, Text, Svg }: Ui, title: string, columns: number) => (
-  <Box flexDirection="column" marginTop={1}>
-    {Svg === undefined ? (
-      <Text dimColor>{'─'.repeat(Math.max(1, columns))}</Text>
-    ) : (
-      <Svg
-        source={`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.max(120, columns * 7)}" height="1"><rect width="100%" height="1" fill="#5c5b56" fill-opacity="0.6"/></svg>`}
-        alt=""
-        width={Math.max(120, columns * 7)}
-        height={1}
-      />
-    )}
-    <Box marginTop={1}>
-      <Text dimColor>{title}</Text>
-    </Box>
-  </Box>
-)
-
 export const drawPane = (ui: Ui, plan: Plan, columns: number, now: number) => {
   const { Box, Text } = ui
   const task = plan.current
@@ -222,12 +203,11 @@ export const drawPane = (ui: Ui, plan: Plan, columns: number, now: number) => {
           ))}
         </Box>
       ))}
-      {plan.finished.length > 0 && Section(ui, 'Terminadas', columns)}
-      {plan.finished.map(folded => (
+      {plan.finished.length > 0 && (
         <Text dimColor wrap="truncate-end">
-          {`${TICK} ${folded.title}${issueOf(folded.issue)} · ${formatDuration(folded.durationMs)}`}
+          {`› ${plan.finished.length} ${plan.finished.length === 1 ? 'terminada' : 'terminadas'}`}
         </Text>
-      ))}
+      )}
     </Box>
   )
 }

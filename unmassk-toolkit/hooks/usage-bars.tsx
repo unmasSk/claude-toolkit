@@ -67,25 +67,32 @@ type Ui = { Box: any; Text: any; Svg?: any }
 const GREEN = '#5a9e6f'
 const ORANGE = '#d98b6a'
 const GREY = '#5c5b56'
-const MARKS = 40
-const MARK_H = 8
+const MARKS = 30
 
 const fmtTokens = (n: number) =>
   n >= 1_000_000 ? `${+(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${Math.round(n / 1_000)}k` : String(n)
 
-const marksSvg = (percent: number, width: number) => {
-  const step = width / MARKS
+// Each mark is its own small drawing, spread with space-between: the row always spans the card exactly.
+const MARK_W = 6
+const MARK_H = 7
+const markSvg = (fill: string, opacity: number) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${MARK_W}" height="${MARK_H}" viewBox="0 0 ${MARK_W} ${MARK_H}"><rect width="${MARK_W}" height="${MARK_H}" rx="1" fill="${fill}" fill-opacity="${opacity}"/></svg>`
+
+const Marks = ({ Box, Svg }: Ui, percent: number) => {
   const on = Math.round((percent / 100) * MARKS)
-  const colour = percent >= 90 ? ORANGE : GREEN
-  const marks = Array.from({ length: MARKS }, (_, i) => {
-    const lit = i < on
-    return `<rect x="${(i * step + 0.6).toFixed(1)}" y="0" width="${(step - 1.6).toFixed(1)}" height="${MARK_H}" rx="1" fill="${lit ? colour : GREY}" fill-opacity="${lit ? 1 : 0.45}"/>`
-  })
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${MARK_H}" viewBox="0 0 ${width} ${MARK_H}">${marks.join('')}</svg>`
+  const lit = markSvg(percent >= 90 ? ORANGE : GREEN, 1)
+  const off = markSvg(GREY, 0.45)
+  return (
+    <Box flexDirection="row" justifyContent="space-between">
+      {Array.from({ length: MARKS }, (_, i) => (
+        <Svg key={i} source={i < on ? lit : off} alt="" width={MARK_W} height={MARK_H} />
+      ))}
+    </Box>
+  )
 }
 
 // Drawn by the plan pane under the plan; nothing until the first reading.
-export const drawUsage = (ui: Ui, reading: UsageReading | null, now: number, columns: number) => {
+export const drawUsage = (ui: Ui, reading: UsageReading | null, now: number) => {
   if (reading === null) return null
   const { Box, Text, Svg } = ui
   // The owner's order and labels: never the engine's list order.
@@ -99,10 +106,8 @@ export const drawUsage = (ui: Ui, reading: UsageReading | null, now: number, col
       : []),
     ...(reading.sevenDay ? [{ label: 'Semana', percent: percentOf(reading.sevenDay, now), detail: '' }] : []),
   ]
-  // A pane column is about 7 px wide on the desktop.
-  const width = Math.max(120, columns * 7)
   return (
-    <Box flexDirection="column" rowGap={1}>
+    <Box flexDirection="column" borderStyle="round" borderColor={GREY} paddingX={1}>
       {shown.map(({ label, percent, detail }) =>
         Svg === undefined ? (
           <Text key={label}>
@@ -119,7 +124,7 @@ export const drawUsage = (ui: Ui, reading: UsageReading | null, now: number, col
               <Text color={percent >= 90 ? ORANGE : undefined}>{`${Math.round(percent)}`}</Text>
               <Text dimColor>{detail !== '' ? `%  ${detail}` : '%'}</Text>
             </Box>
-            <Svg source={marksSvg(percent, width)} alt={`${label} ${fmtPercent(percent)}`} width={width} height={MARK_H} />
+            {Marks(ui, percent)}
           </Box>
         ),
       )}

@@ -98,7 +98,7 @@ for (const surface of SURFACES) {
     expect(seen, `6m 00s since the task started, still ticking: ${last}`).toEqual(['6m 00s', '6m 01s'])
   })
 
-  test(`should_freeze_the_task_total_once_every_step_is_done_at_the_total_the_folded_line_shows_on_the_${surface}`, async ($, on) => {
+  test(`should_freeze_the_task_total_once_every_step_is_done_on_the_${surface}`, async ($, on) => {
     const { opens, clock } = await startSession($, on)
     await callPlan($, { task: ISSUE_TASK })
     await clock.advance(25 * MINUTE)
@@ -107,12 +107,9 @@ for (const surface of SURFACES) {
 
     const finished = await drawn($, opens[0]!.id, surface)
     const title = titleRowOf(finished)
-    await callPlan($, { task: { title: 'Publicar 1.51.1', issue: null, steps: [{ id: '1', title: 'Subir la version' }] } })
-    const folded = rowOf(await drawn($, opens[0]!.id, surface), ISSUE_TASK.title).node
 
     expect(rightColumnOf(title)?.text, `25m 00s, not the 35m 00s since the start: ${JSON.stringify(title)}`).toBe('25m 00s')
     expect((rowsOf(title)[0] ?? '').match(DURATION), 'drawn once, not also inline').toEqual(['25m 00s'])
-    expect((rowsOf(folded)[0] ?? '').match(DURATION), 'the folded line shows the same total').toEqual(['25m 00s'])
   })
 
   test(`should_count_the_task_total_again_from_the_task_start_when_a_finished_task_reopens_a_step_on_the_${surface}`, async ($, on) => {

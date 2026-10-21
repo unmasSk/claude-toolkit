@@ -1,7 +1,7 @@
 import { update } from 'claude-code'
 import type { Register, StateDollar } from 'claude-code'
 
-import { Section, drawPane } from './plan-pane-look.tsx'
+import { drawPane } from './plan-pane-look.tsx'
 import { EMPTY_PLAN, addAgent, applyStatus, applyTask, endAgent, isTicking, pendingSteps } from './plan-pane-model.ts'
 import type { Change } from './plan-pane-model.ts'
 import type { Plan, PlanStep, PlanTask, UsageReading } from './plan-pane-state'
@@ -143,10 +143,12 @@ export const register: Register = on => {
     const usageNow = usage === null ? 0 : now || (await $.clock.now())
 
     return (
-      <ui.Box flexDirection="column">
-        {drawPane(surface, plan, e.props.bodyColumns, now)}
-        {usage !== null && Section(surface, 'Uso', e.props.bodyColumns)}
-        {drawUsage(surface, usage, usageNow, e.props.bodyColumns)}
+      // The plan on top; the usage card pinned to the bottom of the pane (D-170).
+      <ui.Box flexDirection="column" height={e.props.scroll.bodyRows}>
+        <ui.Box flexDirection="column" flexGrow={1}>
+          {drawPane(surface, plan, e.props.bodyColumns, now)}
+        </ui.Box>
+        {drawUsage(surface, usage, usageNow)}
       </ui.Box>
     )
   })

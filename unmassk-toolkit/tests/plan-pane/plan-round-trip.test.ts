@@ -75,7 +75,7 @@ test('should_keep_a_finished_task_whole_with_its_total_time_until_the_next_start
   expect(rows[rowIndex(rows, ISSUE_TASK.title)], 'the task row carries its total time').toMatch(took('25m 00s'))
 })
 
-test('should_fold_the_finished_task_to_one_line_at_the_bottom_when_the_next_starts', async ($, on) => {
+test('should_fold_the_finished_tasks_into_one_count_line_when_the_next_starts', async ($, on) => {
   const { opens, clock } = await startSession($, on)
   await callPlan($, { task: ISSUE_TASK })
   await clock.advance(25 * 60_000)
@@ -85,11 +85,9 @@ test('should_fold_the_finished_task_to_one_line_at_the_bottom_when_the_next_star
   await callPlan($, { task: next })
 
   const rows = await drawnRows(await mountPane($, opens[0]!.id, 'desktop'))
-  const folded = rows.filter(row => row.includes(ISSUE_TASK.title))
-  expect(folded, `the finished task is one line: ${JSON.stringify(rows)}`).toHaveLength(1)
-  expect(FOLDED_MARKS, `the folded line is ticked: ${folded[0]}`).toContain(markOf(folded[0]))
-  expect(folded[0]).toMatch(took('25m 00s'))
-  expect(rows[rows.length - 1], 'that line is the last of the pane').toEqual(folded[0])
+  // D-170: finished tasks fold into one «› N terminadas» line, never one line each.
+  expect(rows.filter(row => row.includes(ISSUE_TASK.title)), `no line per finished task: ${JSON.stringify(rows)}`).toEqual([])
+  expect(rows.some(row => row.includes('› 1 terminada')), `one count line: ${JSON.stringify(rows)}`).toBe(true)
   expect(STEP_TITLES.filter(title => rowIndex(rows, title) >= 0), 'its steps are no longer drawn').toEqual([])
   expect(rowIndex(rows, next.title), 'the new task heads the pane').toBe(0)
   expect(rowIndex(rows, next.steps[0].title)).toBeGreaterThan(0)
