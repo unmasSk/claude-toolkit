@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.55.4] - 2026-10-21
+
 ### Changed
 
 - **Plan pane layout reworked** (D-170): the usage bars sit in their own bordered card pinned to the bottom of the pane, with 30 marks that always span the card's width.
