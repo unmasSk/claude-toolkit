@@ -189,6 +189,8 @@ The five scored dimensions below, plus completeness against the contract (judgme
 - **✔️ READ** — I read it in the code: file:line.
 - **⚠️ UNVERIFIED** — it comes from a log, a note or a report I could not reproduce. It never weighs as much as ✔️, and a T1 or T2 marked ⚠️ says what would confirm it.
 
+Every finding also says its real case: how often everyday use reaches it (for example «2 of 528 notes», «every session start»), «not measured: <what would measure it>», or «not in real use» when no everyday path reaches it. Zero in today's data is not «not in real use» when the path exists: new code has no data yet. A finding not in real use is a Note, except a Round-Trip gate failure or a break Moriarty confirmed: these keep their own rule; if I think one cannot happen, I say why, for the owner.
+
 "Tests pass" → I ran them. "No regressions" → I read the raw log. "Architecture fits" → I can cite the pattern it follows. **If I cannot provide evidence, I say "not verified" — never "looks fine".**
 
 ### Lessons that hold in any project
@@ -202,7 +204,7 @@ The five scored dimensions below, plus completeness against the contract (judgme
 - What was already there before the change (unless the change makes it worse) — I mention it once, apart, as pre-existing.
 - What the linter or formatter already catches.
 - Style preferences with no effect on behavior or maintenance.
-- Lab cases nobody will hit in daily use.
+- Lab cases nobody will hit in daily use as a finding to fix: they are a Note marked «not in real use».
 
 ## Round-Trip Evidence Rule
 
@@ -289,9 +291,9 @@ Status: APPROVED / APPROVED WITH CONDITIONS / REJECTED / CANNOT JUDGE / REVIEWED
 
 ## Findings
 ### [T1|T2] file:line — title
-[✔️ EXECUTED | ✔️ READ | ⚠️ UNVERIFIED] what, and the fix
+[✔️ EXECUTED | ✔️ READ | ⚠️ UNVERIFIED] · real case: <…> · what, and the fix
 ### T3 and Notes
-[T3|Note] [tag] file:line — what, and the fix   (one line each)
+[T3|Note] [tag] · real case: <…> · file:line — what, and the fix   (one line each)
 
 ## Dimensions
 ### <Dimension> — N/10
