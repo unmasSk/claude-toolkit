@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Plan pane layout reworked** (D-170): the usage bars sit in their own bordered card pinned to the bottom of the pane, with 30 marks that always span the card's width.
+- **Finished tasks fold into a single «› N terminadas» line** instead of one line each (replaces the fold of D-153).
+
+### Removed
+
+- **The hairline blocks of 1.55.3** (plan, «Terminadas» and «Uso» behind a hairline with a dim heading) are gone, replaced by the card layout above (D-170).
+
 ## [1.55.3] - 2026-10-21
 
 ### Changed
