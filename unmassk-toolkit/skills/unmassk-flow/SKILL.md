@@ -92,7 +92,7 @@ The two cross-assignments that break the pipeline are Dante mapping the codebase
    - Bilbo: Map, Confirmed findings, Likely findings, Figures with their source, Handoffs, DEAD-ENDS.
    - Alexandria: Files changed, Contradictions, Shipped with no home, Contracts.
 8. **Name a new idea, do not build it.** Scope creep gets one line: «That is a separate task. Want me to open an issue for it?» Then wait.
-9. **Enterprise is the bar; no over-engineering, no academic code.** Build what the task needs, at the quality a professional team ships, and stop there: no abstraction with one user, no option nobody asked for, no handling of a case that does not happen in real use (rule 6), no pattern for its own sake, and tests in proportion to the change (each behaviour once, not every combination). Put this line in the LIMITS of every Ultron and Dante prompt.
+9. **Enterprise is the bar; no over-engineering, no academic code.** `unmassk-standards` §2 sets it (YAGNI, KISS, when to abstract); a case that does not happen in real use is not built (rule 6); and tests go in proportion to the change: each behaviour once, not every combination. Put this line in the LIMITS of every Ultron and Dante prompt.
 
 ## Triage (orchestrator)
 
