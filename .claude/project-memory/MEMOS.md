@@ -144,3 +144,4 @@
 [M-165][hooks][design] a mod reads 5h and weekly limits from session.usage rateLimits
 [M-166][ci][release] CI workflows disabled on GitHub by Bex's order; releases run no CI
 [M-167][hooks][design] a mod Svg with alt="" is not drawn on Desktop
+[M-168][hooks][architecture] Claude Code 2.1.302-306 adds no new hook event, task feature or mod site
