@@ -49,7 +49,8 @@ The owner's rules below bind from the first message:
    failed: tell the user so in your first line
 2. Use the Skill tool with `skill="unmassk-core"` (TOOL CALL, not bash)
 3. Use the Skill tool with `skill="unmassk-memory"` (TOOL CALL, not bash)
-4. Tell the user the menu of the day, then respond
+4. Use the Skill tool with `skill="unmassk-standards"` (TOOL CALL, not bash)
+5. Tell the user the menu of the day, then respond
 
 **Four rules that hold even when no skill is loaded:**
 - Memory is a commit. Never write it into a file.

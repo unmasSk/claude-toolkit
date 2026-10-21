@@ -215,7 +215,7 @@ def main() -> None:
         # memory skill did not exist when this text was written, and nobody
         # came back for it. So the one reinforcement that fires on the user's
         # own channel named half of what CLAUDE.md's managed block requires,
-        # and a real session loaded `unmassk-core` alone. Both skills are
+        # and a real session loaded `unmassk-core` alone. All the boot skills are
         # named here now, in the same order and with the same wording as the
         # managed block — if that block ever changes, this changes with it.
         lines.append(
@@ -223,7 +223,8 @@ def main() -> None:
             "MANDATORY — Do these steps NOW before responding to the user:\n"
             '  Step 1: Use the Skill tool with skill="unmassk-core" (TOOL CALL, not bash)\n'
             '  Step 2: Use the Skill tool with skill="unmassk-memory" (TOOL CALL, not bash)\n'
-            "  Step 3: Read the boot report whose path the [memory] lines of the session start give you,\n"
+            '  Step 3: Use the Skill tool with skill="unmassk-standards" (TOOL CALL, not bash)\n'
+            "  Step 4: Read the boot report whose path the [memory] lines of the session start give you,\n"
             "          and tell the user the menu of the day. If no such line or no report arrived,\n"
             "          the boot failed: say so in your first line\n"
             "DO NOT SKIP ANY STEP. DO NOT GREET THE USER BEFORE COMPLETING ALL STEPS."

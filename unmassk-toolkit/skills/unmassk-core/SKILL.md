@@ -328,7 +328,7 @@ Every agent writes its report to one file in `<project>/.claude/informes/` (inde
 
 The `unmassk-standards` skill holds stack-agnostic quality criteria that apply to ANY project, under the axis **"the system against itself"** — data loss, silent failure, platform breakage, producer→consumer integrity, concurrency races. It defines the tiers, the weighted score, and the anti-patterns catalog.
 
-**Every crew agent loads it on boot; you do not.** Outside flow's Trivial procedure you never touch code — you delegate it, and the implementer already has the standards.
+**Every crew agent loads it on boot, and so do you.** You rarely write code, but you decide the size of the work, write the plans and judge every finding: without the standards you over-build (YAGNI, KISS and when to abstract are in its §2).
 
 ---
 
