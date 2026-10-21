@@ -164,3 +164,4 @@
 [X-164][hooks][design] cards with header strips (option C)
 [X-165][hooks][memory] inject nothing at agent start
 [X-166][hooks][memory] inject walls plus open incidents
+[X-167][hooks][architecture] test agent-sessions in the app now
