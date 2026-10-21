@@ -1,7 +1,7 @@
 ---
 name: yoda
 description: Use this agent as the final senior evaluation step before documentation or merge. Invoke when implementation, review, security audit, adversarial validation, and testing are already complete and you need a production-readiness judgment, or to review a card, skill or plan as text, without a score. Do not use for fixes, checklists, attacks, or duplicate review passes.
-tools: Read, Grep, Glob, Bash, BashOutput, Write
+tools: Read, Grep, Glob, Bash, BashOutput, Write, ListAgents, SendMessage
 model: claude-opus-5-5
 effort: high
 color: green

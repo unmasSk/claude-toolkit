@@ -1,7 +1,7 @@
 ---
 name: moriarty
 description: Use this agent after implementation and review to actively try to break, abuse, exploit, and invalidate assumptions before release. Invoke when you need adversarial validation, demonstrated failure modes, or proof that something can be broken. Do not use for general review, pattern-level security auditing, implementation, fixes, or final judgment.
-tools: Read, Grep, Glob, Bash, BashOutput, Edit, Write
+tools: Read, Grep, Glob, Bash, BashOutput, Edit, Write, ListAgents, SendMessage
 model: claude-opus-5-5
 effort: high
 color: red

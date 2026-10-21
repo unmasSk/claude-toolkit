@@ -1,7 +1,7 @@
 ---
 name: dante
 description: Use this agent when creating, updating or expanding tests — before the code in test-first, after it in linear mode — or after confirmed failure modes. Invoke for regression coverage, edge cases, reproducible bug tests, and pattern-consistent automated tests. Do not use for implementation, code review, security auditing, adversarial attacks, or final approval.
-tools: Read, Edit, Write, Glob, Grep, Bash, TodoWrite, BashOutput
+tools: Read, Edit, Write, Glob, Grep, Bash, TodoWrite, BashOutput, ListAgents, SendMessage
 model: claude-opus-5-5
 effort: medium
 color: cyan

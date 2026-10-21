@@ -1,7 +1,7 @@
 ---
 name: argus
 description: Use this agent when conducting systematic security audits of code, architecture, and exposed attack surface — against the threat model the project declares, which may be an external attacker or the system harming itself (data loss, writes to the wrong place, silent failure). Invoke for vulnerability analysis, auth and authorization flaws, injection risks, secrets handling, insecure design, self-inflicted data loss, and evidence-based security findings. Do not use for general code quality review, active exploitation, implementation, or final approval.
-tools: Write, Bash, Read, Glob, Grep, BashOutput, mcp__sonarqube__analyze_code_snippet, mcp__sonarqube__search_sonar_issues_in_projects, mcp__sonarqube__search_security_hotspots, mcp__sonarqube__show_security_hotspot, mcp__sonarqube__show_rule, mcp__sonarqube__get_raw_source, mcp__sonarqube__get_scm_info, mcp__sonarqube__search_my_sonarqube_projects, mcp__sonarqube__list_languages
+tools: Write, Bash, Read, Glob, Grep, BashOutput, mcp__sonarqube__analyze_code_snippet, mcp__sonarqube__search_sonar_issues_in_projects, mcp__sonarqube__search_security_hotspots, mcp__sonarqube__show_security_hotspot, mcp__sonarqube__show_rule, mcp__sonarqube__get_raw_source, mcp__sonarqube__get_scm_info, mcp__sonarqube__search_my_sonarqube_projects, mcp__sonarqube__list_languages, ListAgents, SendMessage
 model: claude-sonnet-5-5
 effort: high
 color: orange
