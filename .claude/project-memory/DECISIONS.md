@@ -134,3 +134,4 @@
 [D-171][hooks][memory] a SubagentStart hook gives every agent the project's walls, nothing else
 [D-172][hooks][architecture] agent-sessions are tested with the parallel-sessions work, not now
 [D-173][memory][architecture] no memory outside a git project: sessions there save nothing, as today
+[D-174][hooks][memory] walls-at-agent-start is built with the Short procedure, by Bex's order
