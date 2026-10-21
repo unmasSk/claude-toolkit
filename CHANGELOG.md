@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Usage bars drawn as an instrument of 40 fine marks** (D-169): the marks take the pane's colours, green and orange from 90 %, and «Sesión» shows the tokens used beside the bar.
+- **Plan pane split into blocks like Desktop's side panel**: the plan, «Terminadas» and «Uso» each sit behind a hairline with a dim heading.
+
 ## [1.55.2] - 2026-10-20
 
 ### Changed
