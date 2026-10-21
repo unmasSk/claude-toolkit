@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.55.3] - 2026-10-21
+
 ### Changed
 
 - **Usage bars drawn as an instrument of 40 fine marks** (D-169): the marks take the pane's colours, green and orange from 90 %, and «Sesión» shows the tokens used beside the bar.
