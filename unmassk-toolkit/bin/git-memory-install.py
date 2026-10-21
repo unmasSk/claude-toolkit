@@ -1,38 +1,7 @@
 #!/usr/bin/env python3
-"""
-git-memory-install -- Configure git-memory for a project.
+"""Configure git-memory for a project: CLAUDE.md managed block, project memory and manifest.
 
-The plugin runs entirely from the plugin cache (~/.claude/plugins/cache/).
-This script only manages the CLAUDE.md managed block and manifest at the
-project root. No hooks, skills, bin, or lib files are copied.
-
-If an old-style install is detected (files at project root), it cleans them up.
-
-Usage:
-  git memory install              # Interactive install
-  git memory install --auto       # Non-interactive (for scripts/CI)
-  git memory install --mode X     # Force mode: normal, compatible, read-only
-
-Exit codes:
-  0: Install successful
-  1: Error
-  2: Aborted by user
-
-Implementation note: Phase 1 (state detection) and Phase 3 (execution)
-used to live entirely in this file (600+ LOC, growing every round with
-security guards). They are now split by theme into lib/ modules — this
-file is the thin CLI entrypoint (planning + orchestration) only:
-  - lib/install_inspect.py — Phase 1: inspect() + old-install file lists
-  - lib/install_apply.py   — Phase 3: apply_plan() + its private helpers
-
-Every name other scripts depend on is re-exported below (not `import *`)
-so `python3 git-memory-install.py` behaves identically, and so
-git-memory-repair.py (mod._update_claude_md, mod._create_manifest) and
-tests that load this module directly via importlib (mod.inspect,
-mod._update_claude_md) keep working unchanged. git-memory-upgrade.py is
-gone: its version-sync effect now runs from SessionStart via
-lib/upgrade_check.py::trigger_auto_upgrade_if_needed(), which shells out
-to this script with `--auto` instead of importing its names.
+Exit codes: 0 installed, 1 error, 2 aborted by the user.
 """
 
 import argparse
@@ -49,6 +18,7 @@ force_utf8_streams()
 
 from git_helpers import run_git
 
+# Re-exported: git-memory-repair.py and tests load these names from this module.
 from install_inspect import (
     OLD_BIN_FILES, OLD_HOOK_FILES, OLD_LIB_FILES, OLD_SKILL_DIRS, inspect,
 )
@@ -77,16 +47,7 @@ def find_target_root() -> str:
 
 def create_plan(report: dict[str, Any], source: str, target: str,
                 mode: str | None = None) -> dict[str, Any]:
-    """Build an installation plan based on the inspection report.
-
-    Args:
-        report: Output from inspect().
-        source: Plugin source root directory.
-        target: Target repository root directory.
-
-    Returns:
-        Dict with "mode", "actions" list, and "skipped" list.
-    """
+    """Build the install plan from inspect()'s report: {"mode", "actions", "skipped", "repo_type"}."""
     plan: dict[str, Any] = {
         "mode": mode or report["suggested_mode"],
         "actions": [],
@@ -101,10 +62,7 @@ def create_plan(report: dict[str, Any], source: str, target: str,
     is_self = os.path.realpath(source) == os.path.realpath(target)
     if report["has_old_install"]:
         if is_self:
-            # Self-install (dogfooding): source == target, so "old install
-            # files" are actually the plugin's own source files. Report it
-            # as skipped instead of silently doing nothing — the plan
-            # printout should account for every condition it detected.
+            # Self-install: the "old install files" are the plugin's own source.
             plan["skipped"].append(
                 "Old-style install cleanup (self-install: plugin source is the project)"
             )
@@ -120,24 +78,18 @@ def create_plan(report: dict[str, Any], source: str, target: str,
     else:
         plan["actions"].append(("update_claude_md", "Add managed block to CLAUDE.md"))
 
-    # gitmem PATH launcher (~/.local/bin/gitmem) -- survives cache upgrades.
     plan["actions"].append(("install_gitmem_launcher", "Install/refresh gitmem launcher in ~/.local/bin (PATH)"))
 
-    # Project memory: seed the eight empty index files.
     plan["actions"].append(("seed_project_memory", "Seed .claude/project-memory/ index files (8 files)"))
 
-    # Project memory: config.json's repo_type, deduced from branches
-    # unless the file already declares one (never overwritten -- see
-    # install_apply.py::_write_config_json).
+    # repo_type is deduced from branches; an existing value in config.json is kept.
     plan["repo_type"] = report.get("deduced_repo_type", "trunk")
     plan["actions"].append((
         "write_config_json",
         f"Write/merge .claude/project-memory/config.json (repo_type deduced: {plan['repo_type']!r}, unless already set)",
     ))
 
-    # Manifest -- always last (Decision 2d56444 / Moriarty #63, see
-    # apply_plan()'s comment on this same invariant): create_manifest
-    # stamps the version only once every earlier action has succeeded.
+    # Always last: the manifest stamps the version only after every other action succeeded.
     plan["actions"].append(("create_manifest", "Create/update .claude/.unmassk/manifest.json"))
 
     return plan
@@ -146,28 +98,17 @@ def create_plan(report: dict[str, Any], source: str, target: str,
 # ── Phase 4 & 5: Verify + Health Proof ───────────────────────────────────
 
 def verify(target: str) -> dict[str, Any]:
-    """Run git-memory-doctor.py --json to verify the installation.
-
-    Returns:
-        Parsed doctor JSON output, or a fallback dict on failure.
-    """
+    """Run git-memory-doctor.py --json; return its parsed output, or a fallback dict on failure."""
     doctor_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "git-memory-doctor.py")
     if os.path.isfile(doctor_script):
-        # encoding="utf-8", errors="replace": sin `encoding=`, `text=True`
-        # decodifica con el codec de la consola (cp1252 en Windows) y un
-        # caracter fuera de ese codec en la salida del doctor deja
-        # `result.stdout` en `None` sin lanzar nada [House, 2026-08-08].
+        # Explicit utf-8: the console codec (cp1252 on Windows) can leave stdout as None.
         result = subprocess.run(
             [sys.executable, doctor_script, "--json"],
             capture_output=True, text=True, timeout=15,
             encoding="utf-8", errors="replace",
         )
         try:
-            # TypeError incluido a proposito: con encoding/errors fijados
-            # arriba `result.stdout` ya no deberia poder ser `None`, pero
-            # si lo fuera por otra causa, `json.loads(None)` lanza
-            # TypeError (no JSONDecodeError) -- sin capturarlo tambien,
-            # revienta el instalador entero en vez de caer al fallback.
+            # TypeError covers a None stdout.
             data: dict[str, Any] = json.loads(result.stdout)
             return data
         except (json.JSONDecodeError, TypeError):
@@ -191,7 +132,6 @@ def main() -> None:
     source = find_source_root()
     target = find_target_root()
 
-    # Self-install detection: source == target means dogfooding
     is_self = os.path.realpath(source) == os.path.realpath(target)
 
     print("=== git memory install ===")

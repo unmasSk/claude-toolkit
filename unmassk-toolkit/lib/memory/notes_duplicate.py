@@ -1,12 +1,7 @@
-"""Un id que llevan varias lineas vivas de su indice a la vez (D-145).
+"""Handle an id carried by several live lines of its index at once.
 
-remove, replace y promote no eligen por su cuenta: se niegan listando cada
-nota con su commit y su titular, sin tocar nada; `remove --commit <sha>`
-elige una, por el sha entero o por un prefijo unico, como git.
-
-No importa nada fuera de la biblioteca estandar de Python. Imports planos
-entre hermanos de `lib/memory/`.
-"""
+remove, replace and promote refuse and list each note with its commit;
+`remove --commit <sha>` picks one by full sha or unique prefix."""
 
 from collections.abc import Callable
 
@@ -15,31 +10,30 @@ import rejection as rejection_
 from model import IndexLine, Note, Rejection
 
 SHORT_SHA = 10
-_MIN_PREFIX = 4  # el minimo que git acepta como prefijo de un sha
+_MIN_PREFIX = 4  # shortest sha prefix git accepts
 
 
 def sha_matches(sha: str | None, commit: str) -> bool:
-    """`True` si `commit` es el sha entero de `sha` o un prefijo suyo de al
-    menos `_MIN_PREFIX` caracteres.
-    """
+    """True if `commit` is `sha` or a prefix of it at least `_MIN_PREFIX` long."""
     prefix = commit.strip().lower()
     return bool(sha) and len(prefix) >= _MIN_PREFIX and sha.lower().startswith(prefix)
 
 
 def remove_relaunch(note_id: str, reason: str = '"<motivo>"') -> Callable[[str], str]:
-    """El `gitmem remove <id> <motivo> --commit <sha>` listo para pegar, por sha."""
+    """Build the ready-to-paste `gitmem remove <id> <reason> --commit <sha>` for a sha."""
     return lambda sha: f"gitmem remove {note_id} {reason} --commit {sha}"
 
 
 def same_note(note: Note, line: IndexLine) -> bool:
-    """`True` si `line` es la linea de indice de `note`: titular y zonas."""
+    """True if `line` is `note`'s index line: same headline and zones."""
     return (note.headline, note.zone1, note.zone2) == (line.headline, line.zone1, line.zone2)
 
 
 def with_commits(note_id: str, lines: list[IndexLine]) -> list[tuple[IndexLine, str | None]]:
-    """Cada linea con el sha del commit de su nota, o `None` si ninguno casa.
-    Primero casan titular y zonas; lo que quede, solo por titular. Un commit
-    se asigna a una sola linea, asi dos lineas iguales reciben dos commits.
+    """Pair each line with its note's commit sha, or `None` if none matches.
+
+    Matches on headline and zones first, then on headline only; each commit
+    is assigned to one line at most.
     """
     unused = list(query.commits_by_id(note_id))
     shas: list[str | None] = [None] * len(lines)
@@ -84,9 +78,9 @@ def pick(
     commit: str | None,
     relaunch_for: Callable[[str], str],
 ) -> tuple[IndexLine | None, Rejection | None]:
-    """La unica linea viva de `note_id` en `lines`, o el rechazo que lo
-    explica. `(None, None)` si no hay ninguna y no se dio `commit`: quien
-    llama sigue con su propio fallo de "no esta".
+    """The single live line of `note_id` in `lines`, or the rejection explaining why not.
+
+    `(None, None)` when there is none and no `commit` was given.
     """
     matches = [line for line in lines if line.id == note_id]
     if commit is None and len(matches) <= 1:

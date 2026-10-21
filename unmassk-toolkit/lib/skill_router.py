@@ -1,44 +1,6 @@
-"""
-skill_router — per-message protocol-skill trigger-phrase matcher.
+"""Trigger-phrase matcher for the UserPromptSubmit hook: suggests protocol skills and owner reminders.
 
-Lightweight, cheap trigger-phrase table used by the UserPromptSubmit hook
-(hooks/user-prompt-memory-check.py) to nudge Claude toward the right
-protocol skill on EVERY message, not just the first. NOT a BM25/ranking
-rebuild -- an 11-agent council explicitly rejected building anything
-heavier than a static substring check for this. Purely informational:
-never blocks, never denies.
-
-Public interface:
-    match_skills(prompt_text) -> list[str]
-    match_reminders(prompt_text) -> list[tuple[str, str]]
-    is_agent_notice(prompt_text) -> bool
-
-Every phrase in SKILL_TRIGGER_PHRASES is sourced from the matching skill's
-own SKILL.md frontmatter `description` field (see skills/<name>/SKILL.md).
-Exception: unmassk-core's description has no quoted trigger phrases (it is
-"Loaded on session boot", not phrase-triggered) -- its entries are the
-closest equivalent, drawn from its own distinctive nouns/verbs instead.
-SKILL_TRIGGER_PHRASES stays English-only and untouched by this: a
-permanent drift guard (tests/test_user_prompt_skill_router.py,
-TestSkillTriggerPhrasesMatchLiveDescriptions) asserts every one of its
-phrases is a live substring of its skill's SKILL.md description, and no
-SKILL.md carries Spanish text.
-
-The owner (Bex) writes prompts in Spanish, voice-dictated -- accents may
-or may not survive dictation ("sesion" and "sesión" are the same word to
-him). SKILL_TRIGGER_PHRASES_ES adds his Spanish phrasing per skill,
-matched case- and accent-insensitively (NFKD-normalize + drop combining
-marks, then lower-case, on both the prompt and every phrase) alongside
-the English table -- kept as a separate dict so the drift guard above
-never sees it. match_skills() checks both tables together.
-
-REMINDER_TRIGGERS / match_reminders() is a second, unrelated table for
-owner orders that are NOT skill invocations -- direct behavioural
-corrections from the owner's rules
-(answer-first, delegate-research-to-Bilbo, literal-stop, automatic-mode).
-Same matching discipline (normalized substring, never raises), separate
-result shape: a list of (key, Spanish reminder text) pairs, since more
-than one order can legitimately fire on the same message.
+Informational only; matching is an accent- and case-insensitive substring check that never raises.
 """
 
 import re
@@ -46,18 +8,13 @@ import unicodedata
 
 
 def _normalize(text: str) -> str:
-    """Lower-case and strip diacritics via NFKD decomposition.
-
-    Voice dictation drops accents unpredictably ("sesión" vs "sesion"),
-    so both the prompt and every stored phrase are run through this before
-    the substring check -- makes accents optional on both sides instead of
-    hardcoding every accented/unaccented pair by hand.
-    """
+    """Lower-case and strip diacritics via NFKD decomposition."""
     decomposed = unicodedata.normalize("NFKD", text)
     without_marks = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
     return without_marks.lower()
 
 
+# Each phrase must be a substring of its skill's SKILL.md description (checked by a test).
 SKILL_TRIGGER_PHRASES: dict[str, list[str]] = {
     "unmassk-core": [
         "agents", "delegate", "invoke workflows", "domain plugins", "standards",
@@ -88,9 +45,7 @@ SKILL_TRIGGER_PHRASES: dict[str, list[str]] = {
     ],
 }
 
-# Owner's Spanish phrasing per skill (voice-dictated; accents optional --
-# see _normalize()). Kept separate from SKILL_TRIGGER_PHRASES on purpose
-# (see module docstring): the drift guard only ever reads the English dict.
+# Owner's Spanish phrasing per skill; kept apart so the description check reads only the English dict.
 SKILL_TRIGGER_PHRASES_ES: dict[str, list[str]] = {
     "unmassk-flow": [
         "arregla", "arreglalo", "construye", "implementa",
@@ -112,15 +67,7 @@ SKILL_TRIGGER_PHRASES_ES: dict[str, list[str]] = {
 
 
 def match_skills(prompt_text: str) -> list[str]:
-    """Return the list of skill names whose trigger phrases appear in
-    prompt_text, in SKILL_TRIGGER_PHRASES iteration order.
-
-    Cheap accent- and case-insensitive substring check (via _normalize())
-    against both SKILL_TRIGGER_PHRASES (English) and SKILL_TRIGGER_PHRASES_ES
-    (Spanish) -- no stemming, no fuzzy matching, no scoring. Never raises:
-    any unexpected input just yields no matches (fail-open, same discipline
-    as the rest of the hook).
-    """
+    """Skill names whose English or Spanish trigger phrases appear in prompt_text; [] on bad input."""
     try:
         haystack = _normalize(prompt_text)
     except Exception:
@@ -135,15 +82,7 @@ def match_skills(prompt_text: str) -> list[str]:
     return matched
 
 
-# ── Owner orders that are not skill invocations ────────────────────────────
-#
-# Each key maps to the trigger phrases (Spanish, owner's own wording) and
-# the reminder text to surface (Spanish, in the owner's own
-# wording). Every phrase below is chosen to match ONLY the owner's actual
-# phrasing -- e.g. "orden-literal" uses "para ya"/"no sigas", never bare
-# "para"/"parar", so an unrelated "para que funcione" or a lone "parar"
-# does not misfire (verified against the test file's explicit negative
-# cases).
+# Owner orders that are not skill invocations: trigger phrases and the reminder to surface.
 REMINDER_TRIGGERS: dict[str, dict[str, object]] = {
     "respuesta-primero": {
         "phrases": ["si o no", "contestame"],
@@ -180,8 +119,7 @@ REMINDER_TRIGGERS: dict[str, dict[str, object]] = {
     },
 }
 
-# A block the owner pasted: `<pasted_content id="x">...</pasted_content id="x">`.
-# Non-greedy and tied to its own id, so owner words between two blocks survive.
+# A pasted block, `<pasted_content id="x">...</pasted_content id="x">`, matched per id.
 _PASTED_BLOCK_RE = re.compile(
     r'<pasted_content id="([^"]*)">.*?</pasted_content id="\1">', re.DOTALL)
 
@@ -191,11 +129,7 @@ def _strip_pasted(text: str) -> str:
     return _PASTED_BLOCK_RE.sub(" ", text)
 
 
-# Openings Claude Code uses when it delivers an agent's message as a user
-# turn. Such a turn is not the owner speaking: its words (an agent quoting
-# "modo automatico", "implementa", ...) must not fire owner orders or skill
-# routing. Only the OPENING counts -- an owner prompt that mentions one of
-# these strings mid-text is still the owner.
+# Openings of a user turn that carries an agent's message rather than the owner's words.
 AGENT_NOTICE_PREFIXES: tuple[str, ...] = (
     "<task-notification>",
     "Another Claude session sent a message:",
@@ -204,21 +138,16 @@ AGENT_NOTICE_PREFIXES: tuple[str, ...] = (
 
 
 def is_agent_notice(prompt_text: str) -> bool:
-    """True when prompt_text, after leading whitespace, opens with one of
-    AGENT_NOTICE_PREFIXES. Never raises; non-str/empty input yields False."""
+    """True when prompt_text opens (after whitespace) with an AGENT_NOTICE_PREFIXES entry."""
     if not isinstance(prompt_text, str):
         return False
     return prompt_text.lstrip().startswith(AGENT_NOTICE_PREFIXES)
 
 
 def match_reminders(prompt_text: str) -> list[tuple[str, str]]:
-    """Return the list of (key, reminder_text) pairs whose trigger phrases
-    appear in prompt_text, in REMINDER_TRIGGERS iteration order.
+    """(key, reminder_text) pairs whose phrases appear in prompt_text; [] on empty or bad input.
 
-    Same normalized-substring discipline as match_skills(): accent- and
-    case-insensitive, never raises, empty/None input yields an empty list.
-    More than one reminder can fire on the same message. An entry with
-    "ignore_pasted" matches only the owner's own words, outside pasted blocks.
+    An entry with "ignore_pasted" matches only text outside pasted blocks.
     """
     if not prompt_text:
         return []

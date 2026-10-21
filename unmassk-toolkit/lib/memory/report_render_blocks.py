@@ -1,52 +1,13 @@
-"""El bloque de una nota suelta (una linea con id+titular, mas sus
-campos) para cada uno de los siete tipos -- partido fuera de
-`report_render.py` por el mismo techo de 500 lineas que ya partio
-`report_render_note.py` [DEUDA.md puntos 12/14], esta vez al anadir las
-dos marcas de D-056 (memory legibility batch: `archivada`/`(↺ old_id)`,
-ver `_status_suffix`) mas el flag `--chain`.
+"""Render one note (id + headline line, then its fields) for each note type.
 
-Fichero APARTE, no una funcion mas en `report_render.py` -- reusado por
-DOS hermanos, no uno: `report_render.py` lo usa para pintar el informe
-de zona y la busqueda por palabra (`render_zone`/`render_word`, via
-`_section`); `report_render_chain.py` (vista `--chain`, D-056) lo usa
-para pintar cada nota de una cadena con el MISMO bloque de su tipo --
-nunca reimplementa el formato, para que el `Origin:` de una restriccion
-no se pierda en la vista en cadena [caso borde (b) del encargo]. Import
-en un solo sentido -- este fichero no importa nada de `report_render.py`
-ni de `report_render_chain.py` -- para que no haya ciclo [mismo
-principio que `zones.py`/`zones_query.py`, PIEZAS.md Sec.3.3bis].
-
-Que NO hace: no decide que notas se pintan ni en que orden -- eso es
-`report.py` (que) y `report_render.py`/`report_render_chain.py` (donde).
-Solo sabe convertir UNA nota, ya con su marcador y su estado archivado
-resueltos por quien llama, en sus lineas de texto.
-
-`lib/memory/` no importa nada del toolkit fuera de la biblioteca estandar
-de Python [PIEZAS.md Sec.13]. Import plano entre hermanos
-[PIEZAS.md Sec.3.3bis].
+Shared by `report_render.py` and `report_render_chain.py`; imports neither.
 """
 
 from model import Note
 
 
 def _status_suffix(note: Note, archived: bool) -> str:
-    """Lo que cuelga, pegado, al final de la PROPIA linea de bloque de
-    una nota en un listado -- nunca en una linea aparte, para que
-    ``_own_block_line`` (el ancla de los tests) lo vea sin ambiguedad
-    [D-056, memory legibility batch]:
-
-    - ``archivada``, si ``archived`` es ``True`` -- mismo vocabulario
-      que YA usa el sistema para el mismo estado en otros dos sitios
-      (cabecera de ``--id``, ``report_render_note.py``; hijo de racimo,
-      ``report_render._cluster_block``), nunca un glifo nuevo.
-    - ``(↺ {old_id})``, si ``note.replaces`` es un id (``none`` no) -- la flecha de
-      vuelta hacia la nota que sustituyo, visible SIN ``--todo`` (la
-      nota nueva es vigente y ya aparece por defecto).
-
-    Una nota sin ninguno de los dos no lleva sufijo -- cadena vacia,
-    para que el resto de bloques (sin archivados ni sustituciones)
-    salgan byte a byte igual que antes de este cambio.
-    """
+    """Suffix for the note's own line: `archivada` and/or `(↺ old_id)`, or "" when neither applies."""
     parts: list[str] = []
     if archived:
         parts.append("archivada")
@@ -87,9 +48,7 @@ def blocker_block(note: Note, marker: str, archived: bool) -> list[str]:
 
 
 def decision_block(note: Note, marker: str, archived: bool) -> list[str]:
-    """Nota D/X suelta, sin racimo -- usada solo por ``render_word``, que
-    recibe ``WordChunk.notes`` en bruto y no un ``Cluster`` (ver
-    desviacion 3 del docstring de ``report_render.py``)."""
+    """A single D/X note outside a cluster (used by `render_word`)."""
     lines = [f"{marker}{note.id}  {note.headline}{_status_suffix(note, archived)}"]
     if note.why:
         lines.append(f"         Why: {note.why}")
@@ -123,11 +82,7 @@ def question_block(note: Note, marker: str, archived: bool) -> list[str]:
     return lines
 
 
-# Mapa tipo -> bloque, publico para que quien pinta (`report_render.py`,
-# `report_render_chain.py`) elija el bloque correcto sin un `if/elif`
-# repetido en cada uno. X comparte bloque con D: `clusters.group`/
-# `report.py::_DECISION_TYPES` ya tratan D/X como el mismo tipo de nota
-# suelta.
+# Note type -> block renderer; X shares the decision block.
 BLOCK_BY_TYPE = {
     "R": restriction_block,
     "B": blocker_block,

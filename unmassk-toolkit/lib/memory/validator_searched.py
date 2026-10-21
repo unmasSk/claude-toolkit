@@ -1,14 +1,6 @@
-"""La pregunta antes de guardar [D-098/D-124] -- partida fuera de
-validator.py por tamano, mismo corte que `validator_zones.py`/
-`validator_issue.py`/`validator_pointers.py`.
+"""`--searched` validation: the question asked before saving a note or rule.
 
-Sigue siendo una sola implementacion de "esto es valido": `validator.py`
-importa estos nombres de forma PLANA y los reexpone bajo el mismo
-nombre, asi que `validator.validate_searched`, `validator.carry_searched`,
-etc. no cambian para nadie que los llame.
-
-Puras: no abren ficheros ni llaman a git. No importa nada fuera de la
-biblioteca estandar de Python y de sus hermanos de `lib/memory/`.
+Re-exported by validator.py under the same names. Pure: no file or git access.
 """
 
 import dataclasses
@@ -17,21 +9,18 @@ import shlex
 from model import Rejection
 import rejection as rejection_
 
-# D-098/D-124: la pregunta antes de guardar, en palabras del propietario.
 SEARCHED_QUESTION = "¿lo busqué y no está ya escrito ni es sentido común?"
 SEARCHED_FLAG = "--searched"
 SEARCHED_PLACEHOLDER = "<lo que busqué>: <lo que encontré>"
 
 
 def searched_given(value: str | None) -> bool:
-    """`--searched` contestado: cualquier texto no vacio vale [X-105:
-    nadie comprueba QUE se busco]."""
+    """True when `--searched` holds any non-blank text."""
     return value is not None and bool(value.strip())
 
 
 def _without_searched(tokens: list[str]) -> list[str]:
-    """`tokens` sin ninguna aparicion de `--searched` (forma `--searched X`
-    o `--searched=X`) -- para que el relanzamiento no lleve dos."""
+    """Return `tokens` without any `--searched X` or `--searched=X`."""
     out = []
     skip_next = False
     for token in tokens:
@@ -48,10 +37,7 @@ def _without_searched(tokens: list[str]) -> list[str]:
 
 
 def validate_searched(searched: str | None, command_tokens: list[str]) -> Rejection | None:
-    """D-098: `gitmem note`/`gitmem rule` que guarda sin `--searched` con
-    contenido rebota con la pregunta. `command_tokens` es el comando tal
-    cual se tecleo (`["gitmem", "note", ...]`): el relanzamiento es ese
-    mismo comando, cada valor intacto, mas `--searched`."""
+    """Reject a save without `--searched`; the relaunch is `command_tokens` plus the flag."""
     if searched_given(searched):
         return None
     relaunch = shlex.join(_without_searched(list(command_tokens)) + [SEARCHED_FLAG, SEARCHED_PLACEHOLDER])
@@ -72,17 +58,14 @@ def validate_searched(searched: str | None, command_tokens: list[str]) -> Reject
 
 
 def searched_suffix(searched: str | None) -> str:
-    """` --searched '<respuesta>'` para pegar a un relanzamiento, o `""`
-    si no se contesto."""
+    """Return ` --searched '<answer>'` to append to a relaunch, or `""` if unanswered."""
     if not searched_given(searched):
         return ""
     return f" {SEARCHED_FLAG} {shlex.quote(searched)}"
 
 
 def carry_searched(r: Rejection, searched: str | None, prefix: str) -> Rejection:
-    """Otro rechazo, ya contestado `--searched`: sus relanzamientos que
-    empiezan por `prefix` lo arrastran, o obedecerlos rebota otra vez en
-    D-098 y la respuesta se pierde."""
+    """Append the given `--searched` answer to `r`'s relaunches that start with `prefix`."""
     suffix = searched_suffix(searched)
     if not suffix:
         return r

@@ -1,34 +1,6 @@
-"""Rechazar un commit directo sobre la rama principal de un repositorio
-protegido -- compartido por `bin/memory/work.py` y `bin/memory/wip.py`
-[PIEZAS.md Sec.10.1, punto 3; decision del propietario, 2026-08-03: "el
-checkpoint protege la rama principal, con la misma proteccion que
-work.py" -- un checkpoint en la rama principal ES un commit en la rama
-principal, y da igual que sea rapido].
+"""Refuse a direct commit on the main branch of a protected repository.
 
-Vivia SOLO dentro de `work.py` [ya en produccion desde 2026-08-02] --
-logica de negocio metida en un guion, en pequeño incumplimiento de la
-regla de PIEZAS.md Sec.10 ("un script... llama a UNA funcion de la
-libreria... toda la logica esta debajo"). Se traslada aqui, SIN CAMBIAR
-NI UNA LINEA de comportamiento ni el texto del rechazo, para que
-`wip.py` pueda pedir la MISMA proteccion sin copiarla -- dos copias del
-mismo control de seguridad es exactamente el patron que este sistema
-existe para evitar [mismo principio que ``vocabulary.SIMILARITY_
-THRESHOLD``, que vivia duplicado en `validator.py` y `rules.py` hasta
-que se consolido en una sola constante].
-
-"La rama principal": ningun texto de esta rama fija que nombre de rama
-cuenta -- ASUNCION heredada tal cual de `work.py`: la lista fija
-`main`/`master` (`git init` crea `main` por defecto en esta maquina,
-verificado).
-
-Que NO hace. No decide SI se llama -- eso lo decide cada script que lo
-importa. `work.py` lo llama siempre; `wip.py` NO lo llamaba hasta esta
-tarea, por diseño explicito -- el checkpoint nace "sin friccion de
-preguntas de la aduana" [spec], pero eso NO es lo mismo que "sin
-proteccion de rama", que es otro control, gobernado por
-`config.repo_type` (fail-closed: protegido si no se declara). No lee
-`config.json` por su cuenta -- lo recibe ya cargado (`Config`), para no
-repetir la resolucion de `pm_root`/`config.load` en cada llamador.
+Shared by `bin/memory/work.py` and `bin/memory/wip.py`; each caller decides whether to call it.
 """
 
 from pathlib import Path
@@ -37,25 +9,18 @@ import config
 import gitcmd
 import notes
 
-# repo_type protegido -- mismo valor que el default fail-closed de
-# config.Config [config.py::Config.repo_type docstring: "main protegido
-# si no se declara"].
+# Protected repo_type; same value as config.Config's fail-closed default.
 PROTECTED_REPO_TYPE = "gitflow"
 
-# Nombres de rama que cuentan como "la rama principal" -- ver docstring
-# del modulo: sin remoto del que preguntar, lista fija.
+# Branch names that count as the main branch.
 MAIN_BRANCH_NAMES = frozenset({"main", "master"})
 
-# Seam with lib/install_apply.py (writer): the install files it left
-# uncommitted on a protected branch (D-157), one path per line.
+# Written by lib/install_apply.py: install files left uncommitted on a protected branch, one path per line.
 _INSTALL_UNCOMMITTED_MARKER = (".claude", ".unmassk", "install-uncommitted.txt")
 
 
 def current_branch(root):
-    """Rama actual del repositorio en `root`. Lanza `RuntimeError` con el
-    stderr real de git si no se puede determinar -- mismo principio que
-    `gitcmd.repo_root` ya aplica, nunca una cadena vacia en silencio.
-    """
+    """Current branch of the repository at `root`; raises `RuntimeError` with git's stderr on failure."""
     result = gitcmd.run(
         ["rev-parse", "--abbrev-ref", "HEAD"], cwd=root, timeout=gitcmd.GIT_TIMEOUT
     )
@@ -65,29 +30,10 @@ def current_branch(root):
 
 
 def protected_branch_rejection(branch, config_path=None):
-    """Texto del rechazo: que ha pasado y que hacer [Sec.7.4]. Redaccion
-    propia -- ningun documento la fija letra por letra. Texto identico
-    al que `work.py` ya usaba antes de este traslado -- "reutiliza el
-    texto que work.py ya tiene, no escribas uno nuevo" [encargo de esta
-    tarea].
+    """Rejection text: what happened and what to do.
 
-    [corregido 2026-08-04, encargo del propietario]: el rechazo decia
-    "declaralo en config.json" y ahi dejaba a quien lo leyera -- probado
-    en un proyecto recien creado, ese fichero NO EXISTE (ni
-    `config.load()` ni ningun script de `bin/memory/` lo escribe jamas)
-    y el mensaje no decia ni la ruta, ni el contenido, ni si tocaba
-    crear o editar. `config_path` es la ruta YA RESUELTA por el llamador
-    (`notes.pm_root(root) / "config.json"`, la misma que `config.load()`
-    usa de verdad) -- esta funcion no la inventa ni la recalcula, sigue
-    sin leer `config.json` por su cuenta [ver docstring del modulo].
-    Opcional (`None` por defecto) para no romper la llamada directa de
-    `test_rejection_text_matches_the_real_repo_guard_output_verbatim`
-    (`tests/memory/test_wip_script.py`), que compara por SUBCADENA contra
-    la salida real de `wip.py` -- por eso el texto generico de abajo se
-    mantiene byte a byte igual que antes de esta correccion cuando no se
-    pasa ruta, y el bloque nuevo solo se ANADE AL FINAL, nunca se inserta
-    en medio: asi el texto viejo sigue siendo una subcadena literal del
-    nuevo.
+    With `config_path`, append its exact path and whether to create or edit it;
+    the text without it stays a literal prefix of the text with it.
     """
     text = (
         f"❌ commit de trabajo rechazado: repo_type=\"{PROTECTED_REPO_TYPE}\" "
@@ -120,8 +66,7 @@ def protected_branch_rejection(branch, config_path=None):
 
 
 def protected_main_branch(root, cfg):
-    """R-015 in one place: the current branch name when repo_type is
-    protected and that branch is the main one, else None."""
+    """The current branch name when repo_type is protected and it is the main branch, else None."""
     if cfg.repo_type != PROTECTED_REPO_TYPE:
         return None
     branch = current_branch(root)
@@ -129,7 +74,7 @@ def protected_main_branch(root, cfg):
 
 
 def _branch_is_protected(root):
-    """R-015 for a by-path caller that has no config loaded."""
+    """`protected_main_branch` for a by-path caller with no config loaded."""
     cfg = config.load(notes.pm_root(root) / "config.json")
     return protected_main_branch(root, cfg) is not None
 
@@ -154,6 +99,5 @@ def install_left_uncommitted(root):
 
 
 if __name__ == "__main__":
-    # By-path entry for lib/install_apply.py, which may not import
-    # lib/memory/ (tests/memory/test_boundary.py).
+    # By-path entry for lib/install_apply.py, which may not import lib/memory/.
     print("protected" if _branch_is_protected(notes.repo_root()) else "open")

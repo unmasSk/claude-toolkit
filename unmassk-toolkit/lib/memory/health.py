@@ -1,15 +1,6 @@
-"""Comprobar que el sistema no se ha roto solo: el bloque CHECKS del arranque.
+"""Boot CHECKS: verify the memory system has not broken itself; repairs nothing.
 
-    ⚠️  plan #47: 3 commits sin reflejar en la issue
-    ✓  no duplicate IDs (68 notes)
-    ✓  indexes match git (68 lines / 68 notes)
-
-Cada chequeo devuelve sus numeros reales tambien cuando todo esta bien: un
-chequeo que solo habla al fallar no se distingue de uno que no corre. No
-repara nada. `build()` junta todo en el `HealthReport` que pinta el
-arranque; un fallo de `gh` o un git corrupto van a su campo `_error`, sin
-tumbar el resto. `plans_unreflected()` vive en `health_plans.py` y se
-reexpone aqui.
+Each check reports its real numbers even when healthy; a gh or git failure goes to its `_error` field.
 """
 
 from pathlib import Path
@@ -28,14 +19,12 @@ from vocabulary import INDEX_FILES, TYPE_INDEX_FILES
 
 _ARCHIVE_FILE = "ARCHIVED.md"
 
-# Un proyecto recien creado trae unos pocos commits de arranque sin notas.
+# A new project has a few bootstrap commits with no notes.
 _LEGACY_MIN_COMMITS = 8
 
 
 def _current_index_lines(root: Path) -> tuple[IndexLine, ...]:
-    """Las lineas de nota de los siete indices vigentes (sin `ARCHIVED.md`).
-    Un indice ausente cuenta como cero lineas.
-    """
+    """Note lines of the live indexes (not ARCHIVED.md); a missing index counts as empty."""
     pm = notes.pm_root(root)
     lines: list[IndexLine] = []
     for name in INDEX_FILES:
@@ -48,16 +37,12 @@ def _current_index_lines(root: Path) -> tuple[IndexLine, ...]:
     return tuple(lines)
 
 
-# Alias publico: `report.py` y `boot.py` lo usan para saber que gemela de un id sigue viva.
+# Public alias used by report.py and boot.py.
 current_index_lines = _current_index_lines
 
 
 def coherence(root: Path) -> tuple[int, int, tuple[str, ...]]:
-    """Cruza los siete indices vigentes contra el historial real de git.
-
-    Devuelve `(lineas, notas, discrepancias)`. Una nota archivada no falta en
-    el indice; un id archivado que no existe en git si es una discrepancia.
-    """
+    """Cross the live indexes against git; return `(lines, notes, discrepancies)`."""
     root = Path(root)
     index_lines = _current_index_lines(root)
     git_notes = query.by_zone(None, None)
@@ -81,16 +66,13 @@ def coherence(root: Path) -> tuple[int, int, tuple[str, ...]]:
 
 
 def _head_rules_content(root: Path) -> str:
-    """El `rules.md` comiteado en HEAD, nunca el del arbol de trabajo."""
+    """Return rules.md as committed at HEAD, not the working tree copy."""
     relpath = rules.rules_file_path(root).relative_to(root).as_posix()
     return query.show_file_at_head(relpath, root)
 
 
 def coherence_rules(root: Path) -> tuple[int, int, tuple[str, ...]]:
-    """Cruza el `rules.md` comiteado en HEAD contra el del arbol de trabajo,
-    sin mirar la cita de cada regla. Devuelve `(lineas_head, lineas_fichero,
-    discrepancias)`; un `rules.md` ausente son cero reglas.
-    """
+    """Cross rules.md at HEAD against the working tree, ignoring quotes; return `(head, file, discrepancies)`."""
     root = Path(root)
     head_content = _head_rules_content(root)
 
@@ -119,7 +101,7 @@ def coherence_rules(root: Path) -> tuple[int, int, tuple[str, ...]]:
 
 
 def _archive_lines(root: Path) -> tuple[ArchiveLine, ...]:
-    """Las lineas de `ARCHIVED.md`; un fichero ausente es cero lineas."""
+    """Lines of ARCHIVED.md; a missing file is empty."""
     try:
         return indexes.read_archive(notes.pm_root(root))
     except FileNotFoundError:
@@ -127,14 +109,12 @@ def _archive_lines(root: Path) -> tuple[ArchiveLine, ...]:
 
 
 def duplicates(root: Path) -> tuple[str, ...]:
-    """Identificadores que llevan dos o mas lineas vivas a la vez [D-148]."""
+    """Ids that have two or more live index lines."""
     return ids.find_duplicates(_current_index_lines(Path(root)))
 
 
 def _duplicate_notes(duplicate_ids: tuple[str, ...], root: Path) -> tuple[tuple[str, Note], ...]:
-    """`(sha, nota)` de cada copia viva de `duplicate_ids`, con el commit que
-    casa `remove --commit`; una linea sin commit no sale.
-    """
+    """Return `(sha, note)` for each live copy of `duplicate_ids` that has a commit."""
     live = _current_index_lines(root)
     pairs: list[tuple[str, Note]] = []
     for note_id in duplicate_ids:
@@ -147,25 +127,20 @@ def _duplicate_notes(duplicate_ids: tuple[str, ...], root: Path) -> tuple[tuple[
 
 
 def _total_commit_count() -> int:
-    """Cuantos commits tiene el historial completo; una rama sin commits vale 0."""
+    """Count commits in the full history; 0 on an empty branch."""
     raw_stdout = query.run_git_log("--pretty=format:%H")
     return sum(1 for record in raw_stdout.split("\0") if record)
 
 
 def _possible_unconverted_legacy(total_commits: int, git_notes: int) -> int | None:
-    """El numero de commits si hay muchos (mas de `_LEGACY_MIN_COMMITS`) y
-    ninguna nota reconocida: puede ser memoria del sistema anterior sin
-    destilar. `None` en cualquier otro caso.
-    """
+    """Return the commit count when there are many commits but no notes, else None."""
     if git_notes == 0 and total_commits > _LEGACY_MIN_COMMITS:
         return total_commits
     return None
 
 
 def zones_state(zones_path: Path) -> tuple[str, int]:
-    """Estado de `zones.json`: `("absent", 0)`, `("empty", 0)` (tambien si esta
-    corrupto) o `("populated", numero_de_zonas)`.
-    """
+    """Return `("absent", 0)`, `("empty", 0)` (also when corrupt) or `("populated", zone_count)`."""
     if not zones_path.exists():
         return "absent", 0
     try:
@@ -178,10 +153,7 @@ def zones_state(zones_path: Path) -> tuple[str, int]:
 
 
 def _memory_mounted(root: Path) -> tuple[bool, tuple[str, ...]]:
-    """Si la memoria esta montada: los ocho indices, `zones.json` con al menos
-    una zona y `config.json`. Devuelve `(montada, faltantes)`, cada pieza
-    ausente por su nombre.
-    """
+    """Check indexes, zones.json (at least one zone) and config.json; return `(mounted, missing)`."""
     root = Path(root)
     pm = notes.pm_root(root)
     missing: list[str] = []
@@ -204,12 +176,9 @@ def _memory_mounted(root: Path) -> tuple[bool, tuple[str, ...]]:
 
 
 def rebuild_plan(root: Path) -> tuple[tuple[tuple[Note, str], ...], tuple[tuple[str, str], ...]]:
-    """El cruce de `coherence()` vuelto plan de reparacion para `reindex.py`.
-    No escribe nada.
+    """Turn the coherence check into a repair plan for reindex.py; writes nothing.
 
-    Devuelve `(to_insert, to_remove)`: `(nota, fichero)` de cada nota de git
-    no archivada que falta en los indices, y `(id, fichero)` de cada linea
-    cuya nota no existe en git. Un indice ausente cuenta como vacio.
+    Returns `(to_insert, to_remove)`: `(note, file)` missing from the indexes and `(id, file)` absent from git.
     """
     root = Path(root)
     pm = notes.pm_root(root)
@@ -243,9 +212,7 @@ def rebuild_plan(root: Path) -> tuple[tuple[tuple[Note, str], ...], tuple[tuple[
 
 
 def build() -> HealthReport:
-    """Compone el `HealthReport` que pinta `boot.build()`, sin recalcular nada.
-    Un fallo de `issues_checked()` o `coherence_rules()` va a su campo `_error`.
-    """
+    """Build the HealthReport the boot renders; check failures go to their `_error` field."""
     root = notes.repo_root()
     index_lines, git_notes, index_discrepancies = coherence(root)
     try:

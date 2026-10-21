@@ -1,15 +1,8 @@
 #!/usr/bin/env python3
-"""bin/memory/remove.py -- retira una nota (sale de su indice vigente y
-entra en ARCHIVED.md) y, si se pide, hace nacer el muro que sale de una
-incidencia.
+"""Archive a note and, for an incident, optionally create the restriction it leads to.
 
-    remove.py <ID> "<motivo>" --restriction no
-    remove.py <ID> "<motivo>" --restriction new \\
-        --restriction-text "..." --why "..."
-
-`--restriction new` (solo incidencias) son dos commits: primero el cierre
-de `<ID>`, despues -- solo si salio bien -- el muro R en la misma pareja de
-zonas, con `Origin:` apuntando a `<ID>`.
+    remove.py <ID> "<reason>" --restriction no
+    remove.py <ID> "<reason>" --restriction new --restriction-text "..." --why "..."
 """
 
 import argparse
@@ -25,7 +18,7 @@ _LIB_MEMORY_DIR = os.path.join(_TOOLKIT_ROOT, "lib", "memory")
 if _LIB_MEMORY_DIR not in sys.path:
     sys.path.insert(0, _LIB_MEMORY_DIR)
 
-from utf8 import force_utf8_streams  # noqa: E402  (import tras sys.path)
+from utf8 import force_utf8_streams  # noqa: E402  (import after sys.path)
 
 force_utf8_streams()
 
@@ -46,27 +39,24 @@ def _parse_args(argv):
     parser = argparse.ArgumentParser(prog="remove.py")
     parser.add_argument("id")
     parser.add_argument("reason")
-    # Opcional: main() pregunta por el muro si una I llega sin el flag.
+    # Optional: main() asks about the restriction when an I arrives without it.
     parser.add_argument("--restriction", choices=("no", "new"), default=None)
     parser.add_argument("--restriction-text", default=None)
     parser.add_argument("--why", default=None)
-    parser.add_argument("--commit", default=None)  # elige una nota de un id repetido (D-145)
-    parser.add_argument("--replaces", default=None)  # el muro nuevo sustituye a este
+    parser.add_argument("--commit", default=None)  # picks one note of a repeated id
+    parser.add_argument("--replaces", default=None)  # note the new restriction replaces
     return parser.parse_args(argv)
 
 
 def _empty_context():
-    """Un `Context` vacio: `notes.close()` lo recibe pero no lo usa."""
+    """An empty `Context`: `notes.close()` takes it but does not use it."""
     return validator.Context(
         zones={}, existing_in_zone=(), known_ids=frozenset(), config=config.Config(),
     )
 
 
 def _build_fence_context(pm, zone1, zone2):
-    """El `Context` del muro: las notas vivas de su zona, sin las archivadas.
-    `known_ids` incluye las archivadas, porque el muro cita la incidencia que
-    se acaba de cerrar.
-    """
+    """Validation context for the restriction: live notes of its zone; `known_ids` includes archived ones."""
     zones_map = zones_lib.load(pm / "zones.json")
     archived = indexes.archived_ids(pm)
     existing_in_zone = tuple(
@@ -83,7 +73,7 @@ def _build_fence_context(pm, zone1, zone2):
 
 
 def _build_fence_candidate(args, incident):
-    """La `Note` candidata del muro que nace de `incident`."""
+    """Candidate restriction `Note` born from `incident`."""
     return Note(
         type="R",
         id="",
@@ -99,11 +89,9 @@ def _build_fence_candidate(args, incident):
 
 
 def _guard_restriction_new(args):
-    """Comprobaciones previas de `--restriction new`, antes de tocar nada.
+    """Pre-checks for `--restriction new` before anything is written.
 
-    Devuelve la `Note` de la incidencia, o `None` si ya se imprimio el
-    rechazo. El muro candidato pasa por `validator.validate_note()` aqui, para
-    que la incidencia no quede cerrada sin su muro: o nacen las dos, o ninguna.
+    Returns the incident `Note`, or `None` after printing the rejection.
     """
     if not args.id.startswith("I-"):
         print(
@@ -118,7 +106,7 @@ def _guard_restriction_new(args):
             file=sys.stderr,
         )
         return None
-    # Se lee antes de cerrar: la zona del muro sale de la incidencia tal como estaba.
+    # Read before closing: the restriction's zone comes from the incident.
     incident = _incident_note(args)
     if incident is None:
         print(
@@ -152,11 +140,7 @@ def _guard_restriction_new(args):
 
 
 def _incident_note(args):
-    """La nota de `args.id`; con `--commit`, la de ese commit (un id
-    repetido puede tener cada nota en otras zonas). Sin `--commit`, la de
-    la unica linea vigente, no la de una gemela ya archivada. `None` si no
-    hay una sola.
-    """
+    """Note of `args.id` (from `--commit` if given, else its single live line), or `None` if not exactly one."""
     if args.commit is None:
         return _live_incident_note(args.id) or query.by_id(args.id)
     found = [
@@ -167,7 +151,7 @@ def _incident_note(args):
 
 
 def _live_incident_note(note_id):
-    """La nota del commit de la unica linea vigente de `note_id`, o `None`."""
+    """Note of the single live index line of `note_id`, or `None`."""
     pm = notes.pm_root(notes.repo_root())
     index_name = TYPE_INDEX_FILES.get(note_id.split("-", 1)[0])
     live = [line for line in indexes.read(index_name, pm) if line.id == note_id] if index_name else []
@@ -186,11 +170,7 @@ def _incident_label(args):
 
 
 def _replaces_target_problem(replaces, incident_id, pm):
-    """El motivo por el que `--replaces` no apunta a una sola nota vigente
-    distinta de la incidencia que se cierra, o `None` si si -- se mira
-    antes de cerrar nada, para no dejar la incidencia cerrada y el muro sin
-    nacer.
-    """
+    """Error message when `--replaces` is not a single live note other than the incident, else `None`."""
     if replaces is None or replaces == "none":
         return None
     if replaces.lower() == incident_id.lower():
@@ -211,21 +191,13 @@ def _replaces_target_problem(replaces, incident_id, pm):
 
 
 def _headline_rejection_for_remove(args, rejection):
-    """El rechazo del titular largo, con el Relanza cambiado a `gitmem remove`
-    con todos los flags que se dieron: el `gitmem note` del validador
-    escribiria un muro suelto sin cerrar la incidencia.
-    """
+    """Headline rejection with its relaunch rewritten as the full `gitmem remove` command."""
     placeholder = f"<titular de hasta {validator.HEADLINE_MAX} caracteres>"
     return dataclasses.replace(rejection, relaunch=(_remove_command(args, text=placeholder),))
 
 
 def _overlap_rejection_for_remove(args, rejection, candidate, ctx):
-    """El rechazo del muro parecido, con el Relanza cambiado a `gitmem
-    remove ... --replaces <el parecido>`: el `gitmem note R` del validador
-    escribe un muro suelto y deja la incidencia abierta. La incidencia que
-    se cierra nunca es el parecido (el muro nace de ella), ni otra I, X, Q o
-    B; si no queda ninguno, el Relanza lleva `--replaces none`.
-    """
+    """Overlap rejection with its relaunch rewritten as `gitmem remove ... --replaces <similar note or none>`."""
     overlapping = similar.find_overlapping(candidate, ctx.existing_in_zone, threshold=SIMILARITY_THRESHOLD)
     others = [n.id for n in overlapping if n.id.lower() != args.id.lower() and validator.can_be_replaced(n)]
     replaces = others[0] if others else "none"
@@ -233,7 +205,7 @@ def _overlap_rejection_for_remove(args, rejection, candidate, ctx):
 
 
 def _remove_command(args, replaces=None, commit=None, text=None):
-    """`gitmem remove` con todos los flags que se dieron, listo para pegar."""
+    """The `gitmem remove` command with every flag given, shell-quoted."""
     words = ["gitmem", "remove", args.id, args.reason]
     for flag, value in (
         ("--restriction", args.restriction),
@@ -248,9 +220,7 @@ def _remove_command(args, replaces=None, commit=None, text=None):
 
 
 def _fence_retry_command(args, incident):
-    """El comando exacto, ejecutable tal cual, para relanzar SOLO el muro
-    cuando el cierre ya quedo hecho. Toda R contesta `--stops yes`.
-    """
+    """Command to retry only the restriction once the close has already happened."""
     text = shlex.quote(args.restriction_text)
     command = f"gitmem note R --zones {incident.zone1} {incident.zone2} {text}"
     if args.why:
@@ -264,12 +234,7 @@ def _fence_retry_command(args, incident):
 
 
 def _create_fence(args, incident):
-    """La R que sale de `incident`, en su misma pareja de zonas, con `Origin:`
-    apuntando a la incidencia. Devuelve el codigo de salida.
-
-    Si el muro no nace, el aviso dice primero que el cierre ya es permanente y
-    da el comando para relanzar solo el muro.
-    """
+    """Write the restriction born from `incident`; return the exit code."""
     root = notes.repo_root()
     pm = notes.pm_root(root)
     ctx = _build_fence_context(pm, incident.zone1, incident.zone2)
@@ -298,7 +263,7 @@ def _create_fence(args, incident):
 
 
 def _report_close_failure(close_result, note_id):
-    """Imprime por que fallo el cierre y devuelve 1."""
+    """Print why the close failed and return 1."""
     if close_result.rejections:
         for one_rejection in close_result.rejections:
             print(rejection_.render_terminal(one_rejection), file=sys.stderr)
@@ -308,9 +273,7 @@ def _report_close_failure(close_result, note_id):
 
 
 def _archived_count(note_id):
-    """Cuantas lineas de `note_id` tiene ARCHIVED.md ahora -- leido del
-    fichero, no supuesto, para contar lo que el cierre archivo de verdad.
-    """
+    """Number of `note_id` lines currently in ARCHIVED.md."""
     pm = notes.pm_root(notes.repo_root())
     if not (pm / "ARCHIVED.md").exists():
         return 0
@@ -318,10 +281,7 @@ def _archived_count(note_id):
 
 
 def _refuse_unanswered_incident(args):
-    """Una I cerrada sin `--restriction`: imprime la pregunta del molde
-    [TEXTOS.md Sec.1.10], o el fallo si la incidencia no esta en el
-    historial (nunca se cierra sin preguntar). `True` si se nego.
-    """
+    """For an incident closed without `--restriction`, print the question or error; True if refused."""
     incident = _incident_note(args)
     if incident is None:
         print(
@@ -379,6 +339,6 @@ def main(argv):
 if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
-    except Exception as exc:  # nunca una traza de pila -- PIEZAS.md Sec.10
+    except Exception as exc:  # never a stack trace
         print(f"remove.py: {exc}", file=sys.stderr)
         sys.exit(1)

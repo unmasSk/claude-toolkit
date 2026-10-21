@@ -1,120 +1,8 @@
-"""La unica implementacion de <<esto es valido>> en todo el sistema --
-contrato en docs/memoria-v2/PIEZAS.md Sec.7.5.
+"""The single implementation of note validation.
 
-De que salida se deriva: de las nueve validaciones de la aduana
-[spec-sistema-memoria-v2.md Sec.6] y de los diez rechazos que las
-expresan [TEXTOS.md Sec.1]. De esas nueve, la 9 (el error de git se
-propaga entero) NO entra aqui: exige llamar a git, y este modulo NI
-ABRE FICHEROS NI LLAMA A GIT -- vive en la pieza que si hace esa
-llamada (``notes.py``, capa 3). Las siete originales si tienen su
-funcion aqui, una por rechazo [TEXTOS.md Sec.1.1 a 1.7 y 1.11].
-
-**La 8 (la issue del acta existe de verdad en GitHub) SI entra aqui
-desde el 2026-08-02** `[decision del propietario, PIEZAS.md Sec.10.1,
-punto 1]`: aunque exige llamar a algo externo (``gh``), el script que
-la dispara (``bin/memory/note.py``) "no valida nada" -- toda decision
-de <<esto es valido>> tiene que salir de esta pieza, la unica
-implementacion del contrato. ``validate_issue`` es, por tanto, la
-UNICA funcion de este modulo que rompe la pureza de las demas (llama a
-``subprocess``) -- ver su propio docstring para el porque y el trato
-que aplica (mismo patron que ``health.plans_unreflected`` ya fija para
-``gh``: *no se puede comprobar* nunca es *esta bien*).
-
-LA PROPIEDAD QUE NO SE ROMPE PARA LAS OTRAS NUEVE FUNCIONES: SON PURAS.
-Todo lo que necesitan saber del mundo lo reciben en ``Context``, que
-trae quien las llama. Por eso se prueban enteras sin que exista un
-solo commit, y por eso el generador y la aduana obtienen la misma
-respuesta ante los mismos datos -- octava regla del contrato: mismos
-datos, mismo veredicto, siempre.
-
-QUE NO HACE, y es la mitad del contrato. No escribe nada: no repara,
-no da de alta zonas, no normaliza en disco -- ``normalize_keys``
-devuelve la forma buena, quien la guarda es el generador. Por eso la
-key mal escrita no es un rechazo [TEXTOS.md Sec.1.8]: un hook no puede
-escribir. No busca por su cuenta: ``zones`` y ``similar`` los llama
-este modulo por dentro (para que no exista una segunda puerta), pero
-los datos que consultan ya vienen cargados en ``Context``.
-
-QUIEN LO LLAMA. ``notes.py`` (y a traves suyo los cuatro scripts que
-escriben) y ``hooks/customs.py`` para las nueve funciones puras.
-``validate_issue`` la llama, ademas, directamente ``bin/memory/note.py``
--- no a traves de ``notes.py``, porque ninguna de las cinco operaciones
-de esa pieza conoce el flag ``--issue`` como pregunta previa (mismo
-trato que ``validate_pain_question``/``validate_distillation``, que
-tampoco pasan por ``validate_note``).
-
-ASUNCIONES DE FIRMA, DISCLOSED (PIEZAS.md Sec.7.5 solo fija la firma
-completa de ``Context`` y de ``validate_note``; las diez funciones
-internas se citan con ``(...)``):
-
-- ``validate_pain_question(note, stops)`` y ``validate_distillation(note,
-  is_distillation)`` reciben datos (la respuesta a la pregunta del
-  dolor, si la nota es una destilacion) que NO son campos de ``Note``
-  ni de ``Context`` -- por eso ``validate_note`` NO las llama: solo
-  puede invocarse antes de que exista la ``Note`` definitiva, con la
-  respuesta como dato aparte que trae quien arma esa nota todavia sin
-  terminar (mismo principio de pureza que hace a ``Context`` externo,
-  ver test_validator.py, fila 2/3). Quien las llama con esos datos es
-  ``notes.py``/los scripts de capa 5, no ``validate_note``.
-
-- ``validate_note`` agrega las funciones que se derivan por completo de
-  ``note`` + ``ctx``: ``_validate_type``, ``validate_zones``,
-  ``validate_headline``, ``validate_fields``, ``validate_pointers`` y
-  ``validate_replacement``. ``normalize_keys`` no entra: no produce un
-  ``Rejection``, es un aviso al guardar. ``is_wip`` tampoco: opera
-  sobre el titular de un commit que nunca llega a ser ``Note``.
-
-- ``validate_replacement`` usa un umbral de similitud fijo,
-  ``vocabulary.SIMILARITY_THRESHOLD`` (0.5) -- el mismo "deliberadamente
-  generoso" que fija ``test_similar.py`` para separar "obviamente igual"
-  de "obviamente distinto" [PIEZAS.md Sec.6.5: "el umbral lo fija quien
-  llama, no ese modulo"]. Vive en ``vocabulary.py`` (dato cerrado, Sec.6.1)
-  porque ``rules.py`` necesita el mismo valor para el mismo tipo de
-  mecanismo -- una sola copia, dos lectores [revision 2026-08-02, hallazgo
-  de Argus]. ``Config`` no declara un campo de umbral (solo
-  ``customs_enabled``, ``repo_type``, ``test_command`` -- PIEZAS.md
-  Sec.6.3), asi que no hay otro sitio del que sacarlo.
-
-- ``validate_pointers`` (partida a ``validator_pointers.py``, ver mas
-  abajo) distingue un identificador de nota real de un hash de commit
-  v1 citado en ``origin`` para una destilacion, y desde el 2026-08-02
-  recibe tambien ``existing_in_zone`` para el banco adversarial
-  [PIEZAS.md Sec.14 fila 2] -- ver el docstring de ese fichero para el
-  detalle completo.
-
-- ``normalize_keys(keys, headline)`` recibe el titular porque la propia
-  fila de la Superficie lo exige ("ninguna ya en el titular")  y ese
-  dato no vive en ninguna otra parte de la firma.
-
-No importa nada fuera de la biblioteca estandar de Python y de sus
-hermanos de ``lib/memory/`` [PIEZAS.md Sec.13], importados PLANOS
-[PIEZAS.md Sec.3.3bis].
-
-LA LEGALIDAD DEL NOMBRE DE ZONA VIVE EN ``validator_zones.py``, LA
-COMPROBACION DE LA ISSUE EN ``validator_issue.py`` Y LA DE LOS PUNTEROS
-EN ``validator_pointers.py`` -- las tres partidas de aqui por tamano
-[DEUDA.md punto 14; la tercera, 2026-08-02, mismo techo, con el banco
-adversarial de PIEZAS.md Sec.14]. Sigue siendo una sola implementacion:
-este modulo importa ``validate_zones``/``validate_issue``/
-``validate_pointers`` de alli de forma PLANA y las reexpone bajo el
-mismo nombre, asi que ``validator.validate_zones``/
-``validator.validate_issue``/``validator.validate_pointers`` no cambian
-para nadie que los llame. Ver el docstring de cada fichero para el
-porque de su corte.
-
-``validate_issue_gate`` **anadida el 2026-08-26** [D-065/D-066, la
-aduana de issues de Q/I] -- vive en ``validator_issue.py`` junto a
-``validate_issue`` (mismo asunto: la pregunta previa al guardado sobre
-si una Q/I necesita issue), reexportada aqui de la misma forma plana.
-Recibe ``issue``/``work`` sin resolver (no campos de ``Note``, mismo
-trato que ``stops``/``is_distillation`` -- ver "ASUNCIONES DE FIRMA"
-arriba) porque solo ``bin/memory/note.py`` conoce la diferencia entre
-"ausente" y el centinela literal ``"none"``. No entra en
-``validate_note`` por la misma razon que ``validate_pain_question`` no
-entra: solo puede invocarse antes de que la ``Note`` este terminada.
-
-La pregunta antes de guardar (``--searched``, D-098) vive en
-``validator_searched.py``, reexportada aqui de la misma forma plana.
+Every function is pure (data comes in `Context`) except `validate_issue`, which calls `gh`.
+`validate_pain_question`, `validate_distillation`, `validate_incident_close_question` and
+`validate_issue_gate` take an answer that is not a `Note` field, so `validate_note` does not call them.
 """
 
 import re
@@ -127,7 +15,7 @@ import rejection as rejection_
 import similar
 from validator_issue import validate_issue, validate_issue_gate
 from validator_pointers import carry_accepted_flags, carry_answer_flags, description_flag, takes, validate_pointers, why_flag
-from validator_searched import (  # noqa: F401 -- reexportados [D-098]
+from validator_searched import (  # noqa: F401 -- re-exported
     SEARCHED_PLACEHOLDER,
     SEARCHED_QUESTION,
     carry_searched,
@@ -146,25 +34,19 @@ from vocabulary import (
     TYPES,
 )
 
-# Los dos valores literales del flag CLI [TEXTOS.md Sec.1.5].
+# Literal "yes" value of the --stops flag.
 _STOPS_YES = "yes"
 
 _WORD_RE = re.compile(r"\w+", re.UNICODE)
 
-# Una sola fuente del glifo -- desde 2026-08-03 `bin/memory/wip.py` es su
-# productor real [emojis.py, docstring de CHANNEL_EMOJI]; nunca un
-# segundo literal "🚧" suelto que pueda desincronizarse de ese.
+# Single source of the WIP glyph, shared with `bin/memory/wip.py`.
 _WIP_MARKER = emojis.CHANNEL_EMOJI["wip"]
 _WIP_PREFIX = "[WIP]"
 
 
 @dataclass(frozen=True)
 class Context:
-    """Todo lo que el validador necesita saber del mundo.
-
-    Lo trae quien lo llama: el validador NI abre ficheros NI llama a
-    git [PIEZAS.md Sec.7.5, "Superficie"].
-    """
+    """Everything the validator needs to know; supplied by the caller."""
 
     zones: dict[str, Zone]
     existing_in_zone: tuple[Note, ...]
@@ -173,15 +55,7 @@ class Context:
 
 
 def validate_note(note: Note, ctx: Context) -> tuple[Rejection, ...]:
-    """Todas las reglas derivables de ``note`` + ``ctx``. Vacio = valida.
-
-    No incluye ``validate_pain_question`` ni ``validate_distillation``:
-    las dos necesitan un dato (la respuesta al dolor, si es una
-    destilacion) que no es campo de ``Note`` ni de ``Context`` -- ver
-    "ASUNCIONES DE FIRMA" en el docstring del modulo. Tampoco incluye
-    ``normalize_keys`` (no produce ``Rejection``) ni ``is_wip`` (opera
-    sobre un titular de commit que nunca llega a ser ``Note``).
-    """
+    """All rules derivable from `note` and `ctx`. Empty means valid."""
     checks = (
         _validate_type(note),
         validate_zones(note, ctx.zones),
@@ -194,7 +68,7 @@ def validate_note(note: Note, ctx: Context) -> tuple[Rejection, ...]:
 
 
 def validate_headline(headline: str) -> Rejection | None:
-    """Fila 1 [TEXTOS.md Sec.1.11]. Longitud contra ``HEADLINE_MAX``."""
+    """Reject a headline longer than `HEADLINE_MAX`."""
     length = len(headline)
     if length <= HEADLINE_MAX:
         return None
@@ -221,18 +95,8 @@ def validate_headline(headline: str) -> Rejection | None:
     )
 
 
-# Interna desde 2026-08-04 [detector de codigo muerto: 0 llamadores fuera
-# de este fichero, 0 tests propios]. No esta muerta: la unica puerta real
-# del validador desde fuera es `validate_note` (~linea 152), y esta es una
-# de las seis funciones que agrega. NO se generaliza a las otras siete
-# `validate_*` de este modulo -- no estan todas en el mismo caso:
-# `validate_pain_question`, `validate_issue` y `normalize_keys` SI tienen
-# llamador externo (`bin/memory/note.py`/`bin/memory/remove.py`); y
-# `validate_headline`, `validate_fields`, `validate_replacement` y
-# `validate_distillation`, aunque tampoco tengan llamador externo, SI
-# tienen test propio -- se dejan como estan.
 def _validate_type(note: Note) -> Rejection | None:
-    """El arbol de tipos [TEXTOS.md Sec.1.4]. Si no encaja, pregunta que es."""
+    """Reject a note whose type is not in the vocabulary."""
     if note.type in TYPES:
         return None
 
@@ -263,10 +127,10 @@ def _validate_type(note: Note) -> Rejection | None:
 
 
 def validate_fields(note: Note) -> Rejection | None:
-    """Fila 5 [TEXTOS.md Sec.1, via vocabulary.TYPES]. Obligatorios y no permitidos."""
+    """Reject missing required fields or fields the type does not allow."""
     type_spec = TYPES.get(note.type)
     if type_spec is None:
-        return None  # tipo desconocido -- responsabilidad de _validate_type
+        return None  # unknown type: _validate_type rejects it
 
     present = _present_fields(note)
     missing_required = sorted(type_spec.required_fields - present)
@@ -287,8 +151,7 @@ def validate_fields(note: Note) -> Rejection | None:
             f"{', '.join(not_allowed)}"
         )
     what = f"el campo no encaja con el tipo {note.type}"
-    # Un hueco por cada obligatorio del tipo: sin `--why` en una D, el
-    # relanzamiento obedecido rebota otra vez por lo mismo.
+    # One placeholder per required field, so the relaunch command does not bounce again.
     required = "".join(
         f' --{field} "..."' for field in sorted(type_spec.required_fields - {"description"})
     )
@@ -302,9 +165,7 @@ def validate_fields(note: Note) -> Rejection | None:
 
 
 def _present_fields(note: Note) -> frozenset[str]:
-    """Que campos opcionales trae `note` de verdad. Texto libre en blanco
-    (`""`/`"   "`) no cuenta como presente -- CONTENIDO tras `strip()`,
-    no existencia, para `description`/`why`/`awaits`."""
+    """Optional fields `note` really carries; blank free text does not count."""
     present = {"description"} if note.description and note.description.strip() else set()
     if note.why is not None and note.why.strip():
         present.add("why")
@@ -312,7 +173,7 @@ def _present_fields(note: Note) -> frozenset[str]:
         present.add("keys")
     if note.origin:
         present.add("origin")
-    if note.replaces is not None and note.replaces != "none":  # none = coexist, any type [D-164]
+    if note.replaces is not None and note.replaces != "none":  # none = coexist, any type
         present.add("replaces")
     if note.awaits is not None and note.awaits.strip():
         present.add("awaits")
@@ -324,13 +185,7 @@ def _present_fields(note: Note) -> frozenset[str]:
 
 
 def normalize_keys(keys: tuple[str, ...], headline: str) -> tuple[str, ...]:
-    """Vocabulario controlado, tope de cinco, ninguna ya en el titular.
-
-    No escribe nada [PIEZAS.md Sec.7.5, "Que NO hace"]: devuelve la
-    forma buena, quien la guarda en disco es el generador. Por eso una
-    key marcadora mal escrita nunca es un rechazo -- es un aviso al
-    guardar [TEXTOS.md Sec.1.8].
-    """
+    """Canonical keys, at most `MAX_KEYS`, none already in the headline. Writes nothing."""
     headline_words = frozenset(_WORD_RE.findall(headline.lower()))
     normalized: list[str] = []
     seen: set[str] = set()
@@ -346,12 +201,7 @@ def normalize_keys(keys: tuple[str, ...], headline: str) -> tuple[str, ...]:
 
 
 def validate_pain_question(note: Note, stops: str | None) -> Rejection | None:
-    """Filas 2 y 3 [TEXTOS.md Sec.1.5]. Solo aplica a M y R.
-
-    `stops` no es un campo de `Note` -- solo puede llegar de quien
-    arma la nota todavia sin terminar, ver "ASUNCIONES DE FIRMA" en el
-    docstring del modulo.
-    """
+    """For M and R: require the pain answer `stops` and check it matches the type."""
     if note.type not in ("M", "R"):
         return None
 
@@ -365,7 +215,7 @@ def validate_pain_question(note: Note, stops: str | None) -> Rejection | None:
             "  si  ->  es un muro. Entra como R y sale en TODOS los arranques.",
             "  no  ->  es un hecho. Entra como M y se lee cuando se busca su zona.",
         )
-        command = (  # 2026-08-05: arrastra origin/replaces/awaits ya dados (carry_answer_flags)
+        command = (  # carries origin/replaces/awaits already given
             f'gitmem note M --zones {note.zone1} {note.zone2} '
             f'"{note.headline}"{description_flag(note)}{carry_answer_flags(note, skip=frozenset({"--stops"}))} --stops no',
             f'gitmem note R --zones {note.zone1} {note.zone2} '
@@ -390,7 +240,7 @@ def validate_pain_question(note: Note, stops: str | None) -> Rejection | None:
         f"{PAIN_QUESTION} -> {answer_word}",
         f"eso corresponde al tipo {expected_type}, no {note.type}.",
     )
-    command = (  # 2026-08-05: arrastra origin/replaces/awaits ya dados
+    command = (  # carries origin/replaces/awaits already given
         f'gitmem note {expected_type} --zones {note.zone1} {note.zone2} '
         f'"{note.headline}"{description_flag(note)}{carry_answer_flags(note, skip=frozenset({"--stops"}))}'
         f'{why_flag(note, expected_type)} --stops {stops}',
@@ -401,16 +251,14 @@ def validate_pain_question(note: Note, stops: str | None) -> Rejection | None:
 
 
 def can_be_replaced(note: Note) -> bool:
-    """Only a D, M or R is replaced by id; an I, X, Q or B never is [D-164]."""
+    """Only a D, M or R is replaced by id; an I, X, Q or B never is."""
     return takes(note.type, "replaces")
 
 
 def validate_replacement(
     note: Note, existing_in_zone: tuple[Note, ...]
 ) -> Rejection | None:
-    """Fila 4 [TEXTOS.md Sec.1.6]. Parecida sin `--replaces` rebota con las
-    candidatas completas dentro.
-    """
+    """Reject a note that overlaps existing ones in its zone when `--replaces` is missing."""
     if note.replaces is not None:
         return None
 
@@ -436,7 +284,7 @@ def validate_replacement(
         if candidate.why:
             options.append(f"          Why: {candidate.why}")
         options.append("")
-    # Solo las salidas y campos que el tipo admite [D-164].
+    # Only the exits and fields the type accepts.
     by_id = takes(note.type, "replaces")
     options.extend(
         [
@@ -446,18 +294,11 @@ def validate_replacement(
             "  conviven       --replaces none       las dos siguen vigentes",
             "  es duplicado   no la guardes; si hay que matizar, cierra la vieja:",
             '                 gitmem remove <id> "..." --restriction no',
-            # Corregido 2026-08-04: la linea de arriba decia
-            # 'gitmem close <id> "..."' -- `close` no existe (se renombro a
-            # `remove`, DEUDA.md B4) y ademas `remove.py` exige
-            # `--restriction no|new` (bin/memory/remove.py:53, required=True),
-            # asi que ni renombrando el subcomando bastaba. Cerrar una nota
-            # por ser duplicado no hace nacer ningun muro, asi que la
-            # disyuntiva `no|new` resuelve a `no`.
         ]
     )
     replaceable = [c.id for c in candidates if can_be_replaced(c)]
     answer = replaceable[0] if by_id and replaceable else "none"
-    command = (  # only what was given and the type takes: pasted as printed, it saves that [D-164]
+    command = (  # only what was given and the type takes: pasted as printed, it saves
         f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
         f'"{note.headline}"{carry_accepted_flags(note)}{description_flag(note)} --replaces {answer}',
     )
@@ -467,12 +308,7 @@ def validate_replacement(
 
 
 def validate_distillation(note: Note, is_distillation: bool) -> Rejection | None:
-    """Fila 6 [TEXTOS.md Sec.1.7]. Toda destilacion exige fuentes.
-
-    `is_distillation` no es un campo de `Note` -- lo sabe de antemano
-    quien construye la nota (fase de instalacion unica, spec Sec.13),
-    ver "ASUNCIONES DE FIRMA" en el docstring del modulo.
-    """
+    """Reject a distillation without `origin` sources."""
     if not is_distillation or note.origin:
         return None
 
@@ -482,9 +318,6 @@ def validate_distillation(note: Note, is_distillation: bool) -> Rejection | None
         "resumiste ni de comprobar si lo resumiste bien.",
         "",
         "Pon los hashes v1 de los que sale, separados por espacios.",
-        # Corregido 2026-08-04: decia "separados por comas" -- falso,
-        # note.py:86 usa --origin con nargs="+" (espacios); con comas
-        # los tres hashes entraban como un unico origen, mal enlazado [TEXTOS.md Sec.1.7].
     )
     command = (
         f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
@@ -499,13 +332,7 @@ def validate_distillation(note: Note, is_distillation: bool) -> Rejection | None
 
 
 def validate_incident_close_question(note: Note, restriction: str | None) -> Rejection | None:
-    """Fila 10 [TEXTOS.md Sec.1.10]. Solo aplica a incidencias (I-...).
-
-    `restriction` no es un campo de `Note`, ver "ASUNCIONES DE FIRMA"
-    arriba. Anadida 2026-08-04 [decision del propietario, P5]: cerrar
-    una I sin decir si nace un muro no es el error crudo de argparse --
-    el sistema pregunta, con sus dos comandos de relanzamiento dentro.
-    """
+    """Ask whether closing an incident (I) gives rise to a restriction."""
     if note.type != "I" or restriction is not None:
         return None
 
@@ -530,17 +357,6 @@ def validate_incident_close_question(note: Note, restriction: str | None) -> Rej
 
 
 def is_wip(subject: str) -> bool:
-    """Fila 7. El commit exento de toda pregunta [TEXTOS.md, cabecera de emojis].
-
-    Marcado con `[WIP]` literal y el emoji de wip DELANTE del titular
-    [decision del propietario, 2026-08-05: el corchete se anade para que
-    se lea igual que el `[NEXT]` del cierre]. Su productor es
-    `bin/memory/wip.py`. Es solo el predicado: el punto donde hace que
-    ninguna pregunta se dispare vive en `hooks/customs.py`.
-
-    Se sigue reconociendo la forma anterior -- el emoji suelto, sin
-    corchete -- porque ya hay checkpoints escritos asi y dejar de
-    reconocerlos los sometería a preguntas que en su dia no tuvieron.
-    """
+    """True if `subject` is a WIP checkpoint (`[WIP] 🚧` or the older bare emoji)."""
     return subject.startswith((f"{_WIP_PREFIX} {_WIP_MARKER}", _WIP_MARKER))
 

@@ -1,41 +1,6 @@
-"""El menu del dia. Lo primero que se ve al abrir una sesion -- si esto
-falla, el trabajo del dia empieza a ciegas.
+"""Session boot report: branch, NEXT, blockers, restrictions, COUNTS and CHECKS.
 
-Orden exacto de los cinco bloques: el NEXT con su contexto debajo, TODOS
-los bloqueantes con a quien esperan, TODAS las restricciones sin tope,
-los recuentos, los avisos (CHECKS).
-
-Que NO hace: **solo compone y pinta**. No lee git directamente (llama a
-`query`), no calcula salud (llama a `health.build()`), no escribe nada.
-
-`root` sale de `notes.repo_root()`, nunca de `Path.cwd()` a secas:
-`notes.pm_root(root)` es aritmetica de rutas pura sobre `root`, y si el
-proceso arrancara desde una subcarpeta anidada esa composicion apuntaria
-al sitio equivocado.
-
-Se construye con `context`, `health`, `indexes`, `notes`, `query` --
-nunca con `report`/`zones` (hueco declarado: las dos lineas de
-TEXTOS.md Sec.3.2 que leen `zones.json` quedan fuera).
-
-Una nota es vigente si su id no aparece en `ARCHIVED.md`, o si su id y
-su titular siguen en un indice vivo (una gemela cuya hermana se archivo,
-D-148). Un `ARCHIVED.md` ausente cuenta como cero archivados.
-Blockers y restricciones salen de ese mismo filtro, sin tope.
-
-Los tres recuentos sin fuente fijada en el contrato (`open_questions`,
-`open_issues`, `open_incidents`):
-
-- `open_questions`/`open_incidents`: cuenta de notas Q/I vigentes (Q
-  asciende a M o cae a X, I se cierra -- las dos mueven la nota a
-  ARCHIVED.md por el mismo mecanismo que D/M/R).
-- `open_issues`: numeros de issue DISTINTOS con notas vigentes de
-  trabajo (cualquier tipo salvo X) que GitHub no da por cerradas. El
-  abierto/cerrado sale de la UNICA consulta a `gh` que ya hace
-  `health.build()` (R-025: nunca una llamada por issue); si esa consulta
-  fallo, las issues salen sin comprobar y COUNTS lo dice.
-
-`lib/memory/` no importa nada del toolkit fuera de la biblioteca estandar
-de Python. Import plano entre hermanos.
+Only composes and renders: reads through `query` and `health`, writes nothing.
 """
 
 import textwrap
@@ -54,23 +19,14 @@ import timefmt
 import validator
 from model import BootSummary, ContextNote
 
-_BOX_WIDTH = 72  # mismo ancho visual que report_render._BOX_WIDTH
+_BOX_WIDTH = 72  # same width as report_render._BOX_WIDTH
 
-# Literales exactos de TEXTOS.md Sec.3.2 (proyecto recien instalado),
-# copiados byte a byte -- son la salida, no un ejemplo. Etiquetas
-# estructurales en ingles [decision del propietario, 2026-08-03]:
-# BLOQUEANTES->BLOCKERS, RESTRICCIONES->RESTRICTIONS -- el contenido
-# explicativo (los porques, las descripciones) se queda en espanol.
 _ZERO_BLOCKERS = "⛔ BLOCKERS ......  C E R O"
 _ZERO_RESTRICTIONS = (
     "⚠️ RESTRICTIONS ....  C E R O",
     "                      No hay ningún muro puesto. Nada te va a parar",
     "                      porque nadie ha escrito todavía qué rompe qué.",
 )
-# "[NEXT]" literal, no "NEXT" a secas -- decision del propietario,
-# 2026-08-03 (COLA.md Sec.5): el corchete es parte del titular, igual que
-# en el commit de cierre (`format.build_context_message`). El indent de
-# continuacion se deriva del ancho de la etiqueta, nunca un numero magico.
 _NEXT_LABEL = "[NEXT] "
 _NEXT_INDENT = " " * len(_NEXT_LABEL)
 _NO_NEXT = (
@@ -89,13 +45,7 @@ _MAP_IS_SET = (
     "El mapa está puesto. Dime por dónde: el Next, una pregunta, una issue,",
     "o lo que traigas.",
 )
-# Pie del arranque cuando `health.memory_mounted` dice que falta algo --
-# anadido 2026-08-06 [Aviso B, fallo 2 real: el pie de siempre
-# (`_FIRST_NOTE_HINT`) invitaba a `--zones <zona1> <zona2>` con dos
-# zonas inventadas, el primer comando garantizado a fallar cuando
-# `zones.json` no tiene ninguna zona todavia -- `validator.validate_zones`
-# rechaza cualquier nombre que no exista ya]. Ensena el orden real: las
-# zonas se dan de alta ANTES de que exista una nota que pueda llevarlas.
+# Footer when memory setup is incomplete: zones must exist before the first note.
 _SETUP_MISSING_HINT = (
     "La memoria de este proyecto todavía no está montada del todo -- antes",
     "de guardar una nota hace falta dar de alta al menos una zona:",
@@ -111,18 +61,13 @@ _SETUP_MISSING_HINT = (
 
 
 def build() -> BootSummary:
-    """El estado real del proyecto, listo para `render()`. Lee TODO el
-    historial una sola vez (`query.by_zone(None, None)`, los dos ejes en
-    `None` no filtran nada) y deriva de ahi restricciones, bloqueantes y
-    los tres recuentos -- ver el docstring del modulo para el porque de
-    cada decision. `health.build()` compone el informe de salud aparte;
-    este modulo nunca recalcula lo que ya calculo `health`.
+    """Build the project's BootSummary from one full read of the note history.
+
+    A note is live if its id is not archived, or if its (id, headline) is still in a
+    live index. open_issues counts distinct issues with live non-X notes not closed on GitHub.
     """
     root = notes.repo_root()
-    # Lo primero de todo, antes de leer una sola nota: traerse lo que
-    # haya hecho otra maquina, para no presentar el ultimo cierre de
-    # ESTA copia como si fuera el estado del proyecto. Un repositorio sin
-    # un solo commit no tiene rama que leer todavia -- se sigue sin ella.
+    # Fetch first, so the summary is not this copy's stale state; a repo with no commit has no branch.
     try:
         branch = repo_guard.current_branch(root)
     except RuntimeError:
@@ -162,7 +107,7 @@ def build() -> BootSummary:
         project=root.name,
         generated_at=datetime.now(timezone.utc),
         remote=remote_state,
-        # Un remoto ajeno no puede aportar el Next: ver context.latest().
+        # An unrelated remote cannot provide the Next.
         context=context.latest(all_refs=not remote_state.unrelated_remote),
         blockers=blockers,
         restrictions=restrictions,
@@ -188,22 +133,12 @@ def _box_content_line(left: str, right: str) -> str:
     return f"║{left}{' ' * gap}{right}║"
 
 
-# Ancho del texto plegado: el de la caja menos la sangria del Next.
+# Wrap width: the box minus the Next indent.
 _PROSE_WIDTH = _BOX_WIDTH - len(_NEXT_INDENT) - 2
 
 
 def _remote_block(state) -> list[str]:
-    """Donde se dejo el trabajo y donde estas tu, desglosado bajo la caja.
-
-    Fuera de la cabecera a proposito [decision del propietario,
-    2026-08-05: "en el banner que aparezca el proyecto y la hora, y lo
-    demas desglosado debajo"]: dentro iba apretado y el nombre de una
-    rama larga se comia la linea entera.
-
-    Va antes del Next porque cambia lo que hay que hacer: enterarse de
-    que lo ultimo se hizo en otra rama, en otra maquina, DESPUES de leer
-    el resto es enterarse tarde.
-    """
+    """Render the BRANCH block: where the last work was left and where you are."""
     if state is None:
         return []
 
@@ -255,9 +190,7 @@ def _remote_block(state) -> list[str]:
 
 
 def _looks_like_a_commit_line(line: str) -> bool:
-    """Una linea de la lista que el cierre deja bajo el contexto: empieza
-    por el corchete del tipo (`[D-030]...`), por el del checkpoint
-    (`[WIP]`) o por un guion de lista."""
+    """True for a commit-list line under the context: starts with `[`, `- ` or `* `."""
     stripped = line.lstrip()
     return stripped.startswith(("[", "- ", "* "))
 
@@ -269,9 +202,7 @@ def _next_block(ctx: ContextNote | None) -> list[str]:
         f"{_NEXT_LABEL}{emojis.CHANNEL_EMOJI['next']} {ctx.headline}",
         f"{_NEXT_INDENT}Context (cerrado {timefmt.utc_label(ctx.timestamp)}):",
     ]
-    # Prosa corrida plegada al ancho de la caja (unas veinticinco lineas).
-    # Los Next anteriores al #89 terminan con la lista de commits: esas
-    # lineas no se pliegan, para que sigan siendo una columna ojeable.
+    # Prose is wrapped to the box; commit-list lines are kept unwrapped.
     for paragraph in ctx.context.split("\n"):
         if not paragraph.strip():
             lines.append("")
@@ -286,9 +217,7 @@ def _next_block(ctx: ContextNote | None) -> list[str]:
 
 
 def _blockers_section(blockers) -> list[str]:
-    """Privada: el lector real y publico de `awaits` es `render()` mas
-    abajo (`vocabulary.FIELDS["awaits"].reader` declara `"boot.render"`).
-    """
+    """Render the BLOCKERS block, each with what it awaits."""
     if not blockers:
         return [_ZERO_BLOCKERS]
     lines = [f"⛔ BLOCKERS ({len(blockers)})", ""]
@@ -302,7 +231,7 @@ def _blockers_section(blockers) -> list[str]:
 def _restrictions_block(restrictions) -> list[str]:
     if not restrictions:
         return list(_ZERO_RESTRICTIONS)
-    # Solo el titular; el porque entero, a una busqueda (D-094).
+    # Headline only; the full why is one search away.
     lines = [
         f"⚠️ RESTRICTIONS ({len(restrictions)})",
         "   the full why of each: gitmem search --id R-NNN",
@@ -314,8 +243,7 @@ def _restrictions_block(restrictions) -> list[str]:
 
 
 def _recuentos_block(summary: BootSummary) -> list[str]:
-    # Una linea por issue (D-060/D-064), con su titulo de GitHub; sin
-    # respuesta de GitHub, el titular de su primera nota y el aviso.
+    # One line per issue with its GitHub title, else its first note's headline.
     report = summary.health
     lines = ["COUNTS"]
     if summary.issues and report.plans_unreflected_error is not None:
@@ -336,11 +264,7 @@ def _recuentos_block(summary: BootSummary) -> list[str]:
         if note.issue not in listed:
             listed.add(note.issue)
             lines.append(f"      - #{note.issue}: {titles.get(note.issue) or note.headline}")
-    # Una pregunta sin resolver y una incidencia abierta salen POR SU
-    # NOMBRE, nunca como una cifra: un "3" no dice cual de las tres te
-    # para hoy, y esa era justamente la queja -- "con seis preguntas
-    # abiertas yo no me entero de nada". Las cuentas de arriba siguen
-    # para lo que si es un numero.
+    # Open questions and incidents are listed by name, not as a count.
     lines.extend(_named_block("❓ OPEN QUESTIONS", summary.questions))
     lines.extend(_named_block("🔥 OPEN INCIDENTS", summary.incidents))
     return lines
@@ -365,34 +289,10 @@ def _named_block(title: str, notes_seen) -> list[str]:
 
 
 def _avisos_block(summary: BootSummary) -> list[str]:
-    """Los ✓ importan tanto como los ⚠️: se imprime siempre el numero
-    real, gane o pierda la comparacion, nunca el silencio de una linea
-    ausente. Si `gh` fallo, `plans_unreflected_error` lo dice en vez de
-    tumbar el arranque; cada discrepancia de indice o de regla nombra la
-    nota/linea que diverge, no solo los numeros. `rule_discrepancies_error`
-    sigue el mismo patron: si un git corrupto impidio evaluar el chequeo
-    de reglas, esta seccion lo dice y nunca pinta "rules match git" para
-    un chequeo que no corrio.
+    """Render the CHECKS block.
 
-    Los ✓/⚠️ dependen de que la lista de discrepancias este vacia, nunca
-    de comparar `lineas == notas` a secas (dos numeros pueden coincidir
-    aunque el CONTENIDO diverja).
-
-    Etiquetas estructurales en ingles: CHECKS, "no duplicate IDs"/
-    "duplicate IDs", "indexes match git"/"indexes do not match git",
-    "rules match git"/"rules do not match git". El contenido explicativo
-    se queda en espanol.
-
-    Desglose con archivadas: "N lineas / M notas" no explicaba por que
-    M > N cuando hay notas archivadas -- si `archived_notes` es cero se
-    pinta igual que siempre; si no, se desglosa "K live + J archived / M
-    notas".
-
-    Dos avisos (memoria del sistema anterior sin destilar / memoria no
-    montada) rompen a proposito la regla de arriba: solo hablan cuando
-    hay algo real que avisar, se callan del todo en un proyecto sano --
-    no son un chequeo de coherencia, son una senal de sospecha y un
-    requisito de arranque.
+    Each coherence check always prints its ✓ or ⚠️ line, decided by its discrepancy list
+    (or its error when it could not run). The legacy-memory and setup warnings print only when they fire.
     """
     report = summary.health
     lines = ["CHECKS"]
@@ -460,12 +360,6 @@ def _avisos_block(summary: BootSummary) -> list[str]:
     for text in report.index_discrepancies:
         lines.append(f"      - {text}")
 
-    # Resucitado 2026-08-23 [I-003, hallazgo real de Moriarty] -- mismas
-    # dos etiquetas que la version original de 2026-08-02 fijaba antes de
-    # retirarse el 2026-08-06 (ver `health.py`, "coherence_rules
-    # RESUCITA"). Mismo criterio que arriba: se pinta SIEMPRE, gane o
-    # pierda la comparacion (los ✓ importan tanto como los ⚠️), nunca solo
-    # cuando falla.
     if report.rule_discrepancies_error is not None:
         lines.append(
             "   ⚠️  no se pudo comprobar si las reglas coinciden con git: "
@@ -484,10 +378,7 @@ def _avisos_block(summary: BootSummary) -> list[str]:
 
 
 def render(summary: BootSummary) -> str:
-    """El texto completo del arranque -- orden fijo de cinco bloques
-    [spec Sec.8.3], mas la cabecera y el cierre. Nunca recorta nada:
-    restricciones y bloqueantes salen enteros, sin tope.
-    """
+    """Render the full boot text; blockers and restrictions are never truncated."""
     lines: list[str] = []
     lines.append(_box_border("╔", "╗"))
     lines.append(

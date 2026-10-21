@@ -1,20 +1,7 @@
 #!/usr/bin/env python3
-"""
-git-memory-repair -- Repair git-memory configuration at the project level.
+"""Repair the project-level git-memory files: CLAUDE.md managed block and manifest.
 
-The plugin runs from the plugin cache. This script only repairs project-level
-files: CLAUDE.md managed block and manifest. If plugin cache files are broken,
-the user needs to reinstall the plugin with `/plugin install`.
-
-Usage:
-  git memory repair              # Interactive repair
-  git memory repair --auto       # Non-interactive
-  git memory repair --dry-run    # Show what would be fixed
-
-Exit codes:
-  0: Repaired (or nothing to repair)
-  1: Error (repair failed)
-  2: Aborted by user
+Exit codes: 0 repaired or nothing to repair, 1 a repair failed, 2 aborted by the user.
 """
 
 import argparse
@@ -50,25 +37,13 @@ def find_target_root() -> str:
 # ── Diagnosis ─────────────────────────────────────────────────────────────
 
 def diagnose(target: str) -> list[tuple[str, str, str]]:
-    """Find what is broken at the project level.
-
-    Checks CLAUDE.md managed block, manifest, and old-style install remnants.
-
-    Args:
-        target: Target repository root directory.
-
-    Returns:
-        List of (issue_type, target_name, description) tuples.
-    """
+    """Return the project-level issues as (issue_type, target_name, description) tuples."""
     issues = []
 
-    # Check CLAUDE.md managed block
     claude_md = os.path.join(target, "CLAUDE.md")
     if os.path.isfile(claude_md):
         try:
-            # barrido finding: never follow a symlink planted at CLAUDE.md —
-            # flag it as an issue (so repair recreates a real file) instead
-            # of silently trusting whatever external file it points at.
+            # A symlinked CLAUDE.md is reported as an issue, never followed.
             with open_no_follow_symlink(claude_md, "r") as f:
                 content = f.read()
             if "BEGIN unmassk-toolkit" not in content:
@@ -78,22 +53,18 @@ def diagnose(target: str) -> list[tuple[str, str, str]]:
     else:
         issues.append(("missing_claude_md", "CLAUDE.md", "CLAUDE.md not found"))
 
-    # Check manifest
     manifest_path = os.path.join(target, ".claude", ".unmassk", "manifest.json")
     if not os.path.isfile(manifest_path):
         issues.append(("missing_manifest", "manifest", "Manifest missing"))
     else:
         try:
-            # barrido finding (same class as SEC-LOW-NEW-05): never follow a
-            # symlink planted at the manifest path — a symlink must be
-            # flagged as an issue (so repair recreates a real file), never
-            # silently trusted as a valid manifest.
+            # A symlinked manifest is reported as corrupt, never followed.
             with open_no_follow_symlink(manifest_path, "r") as f:
                 json.load(f)
         except (json.JSONDecodeError, OSError):
             issues.append(("corrupt_manifest", "manifest", "Manifest corrupt (invalid JSON)"))
 
-    # Check for old-style install remnants
+    # Old-style install remnants at the project root.
     old_files = [
         "bin/git-memory-doctor.py", "hooks/pre-validate-commit-trailers.py",
         ".claude-plugin/plugin.json",
@@ -109,18 +80,8 @@ def diagnose(target: str) -> list[tuple[str, str, str]]:
 # ── Repair Actions ────────────────────────────────────────────────────────
 
 def repair_issue(issue_type: str, source: str, target: str) -> bool:
-    """Repair a single diagnosed issue.
-
-    Args:
-        issue_type: Type key from diagnose().
-        source: Plugin source root directory.
-        target: Target repository root directory.
-
-    Returns:
-        True if the issue was fixed successfully.
-    """
+    """Repair one issue_type from diagnose(); True if it was fixed."""
     if issue_type in ("missing_block", "missing_claude_md"):
-        # Load install module to reuse _update_claude_md
         from importlib.util import spec_from_file_location, module_from_spec
         install_path = os.path.join(source, "bin", "git-memory-install.py")
         if not os.path.isfile(install_path):
@@ -144,13 +105,11 @@ def repair_issue(issue_type: str, source: str, target: str) -> bool:
         mod = module_from_spec(spec)
         spec.loader.exec_module(mod)  # type: ignore[union-attr]
 
-        # Read existing mode from manifest if possible
+        # Keep the existing manifest's mode when it is readable.
         mode = "normal"
         manifest_path = os.path.join(target, ".claude", ".unmassk", "manifest.json")
         if os.path.isfile(manifest_path):
             try:
-                # Same symlink guard as diagnose() — a symlinked manifest
-                # must never be read/trusted here either.
                 with open_no_follow_symlink(manifest_path, "r") as f:
                     data = json.load(f)
                 mode = str(data.get("runtime_mode", "normal"))
@@ -161,15 +120,10 @@ def repair_issue(issue_type: str, source: str, target: str) -> bool:
         return True
 
     elif issue_type == "old_install":
-        # Run install with --auto to clean up old files
+        # install --auto cleans up the old files.
         install_script = os.path.join(source, "bin", "git-memory-install.py")
         if os.path.isfile(install_script):
-            # encoding="utf-8", errors="replace": sin `encoding=`,
-            # `text=True` decodifica con el codec de la consola (cp1252 en
-            # Windows) y puede reventar la decodificacion en un hilo aparte
-            # [House, 2026-08-08]. Su salida no se lee aqui (solo importa el
-            # returncode implicito de "termino"), pero el propio
-            # `subprocess.run` puede fallar si el hilo lector muere.
+            # Explicit utf-8: the console codec (cp1252 on Windows) can break decoding.
             subprocess.run(
                 [sys.executable, install_script, "--auto"],
                 capture_output=True, text=True, timeout=30,

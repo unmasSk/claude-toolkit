@@ -1,47 +1,6 @@
-"""La comprobacion contra GitHub de que la issue del acta existe de
-verdad -- partida fuera de validator.py por tamano [mismo techo, mismo
-motivo que `validator_zones.py`: DEUDA.md punto 14, "552 lineas, techo
-500"; con esta pieza dentro, `validator.py` habria pasado el mismo techo
-otra vez].
+"""Issue checks of the note validator: the issue exists on GitHub (via `gh`), and the Q/I issue gate.
 
-Este fichero NO es una segunda pieza ni una segunda puerta de
-validacion: sigue habiendo una sola implementacion de "esto es valido"
-[PIEZAS.md Sec.7.5]. `validator.py` importa `validate_issue` de aqui de
-forma PLANA [PIEZAS.md Sec.3.3bis] y lo reexpone bajo el mismo nombre,
-asi que `validator.validate_issue` sigue funcionando exactamente igual
-para cualquiera que lo llame (`bin/memory/note.py`).
-
-QUE ES LO QUE SE PARTIO, Y POR QUE ESTE CORTE Y NO OTRO: la fila 8 de la
-aduana [spec-sistema-memoria-v2.md Sec.6; TEXTOS.md Sec.1.9] es la UNICA
-de las diez que exige llamar a algo externo distinto de git (``gh``) --
-un asunto propio, que no comparte datos con el resto de `validator.py`
-mas alla de la `Note` candidata (para el comando de relanzamiento) y el
-numero de issue. Decision del propietario, 2026-08-02 [PIEZAS.md
-Sec.10.1, punto 1]: *"Se construye en validator, no en el script -- el
-script no valida nada. ... Copia ese trato"* (el de
-``health.plans_unreflected``, que ya consulta ``gh`` y falla en alto si
-no puede: *no se puede comprobar* nunca es *esta bien*).
-
-QUE NO HACE. No decide el tipo de nota, las zonas, los campos, los
-punteros, la sustitucion, la pregunta del dolor ni la destilacion --
-todo eso sigue en `validator.py`. No abre ficheros ni llama a git -- la
-UNICA llamada externa de todo el modulo `validator.py` (y de este
-fichero) es a `gh`, nunca a `git` [PIEZAS.md Sec.7.5, misma restriccion
-que el resto de la pieza, con esta unica excepcion declarada].
-
-**`validate_issue_gate` anadida el 2026-08-26** [D-065/D-066, la aduana
-de issues de Q/I: "¿cerrar esta nota exige trabajo... o solo una
-respuesta/decision?"]. Vive junto a `validate_issue` porque es el mismo
-asunto (la pregunta previa a `--issue`), no una segunda puerta: sin
-`--issue` NI `--work`, Q/I rebotan pidiendo que se conteste; con
-`--issue none`, exige ademas la cita literal del dueño (`note.quote`,
-mismo trato que `Note.issue` -- campo real, no dato aparte). NO llama a
-`gh` -- a diferencia de `validate_issue`, es pura [mismo contrato que el
-resto de `validator.py`].
-
-No importa nada fuera de la biblioteca estandar de Python y de sus
-hermanos de `lib/memory/` [PIEZAS.md Sec.13], importados PLANOS
-[PIEZAS.md Sec.3.3bis].
+Re-exported by validator.py; `gh` is the only external call, never git.
 """
 
 import re
@@ -53,52 +12,20 @@ from model import Note, Rejection
 import rejection as rejection_
 from validator_pointers import carry_accepted_flags, description_flag
 
-# Segundos de espera para `gh issue view` -- mismo valor y misma fuente
-# que `health._GH_TIMEOUT` ("consulta simple, 0,85s medidos"), no una
-# segunda copia inventada: los dos son el mismo tipo de llamada (una
-# consulta de lectura contra `gh`). No se importa de `health.py` para no
-# crear una dependencia cruzada entre dos piezas que no comparten nada
-# mas -- mismo tradeoff, ya aceptado en este sistema, que `rejection.py`
-# asume para el emoji "⛔" en vez de importar `emojis.py` por un solo
-# caracter [rejection.py, docstring del modulo].
+# Seconds for `gh issue view`; same value as health._GH_TIMEOUT.
 _GH_TIMEOUT = 10
 
-# Texto real y estable que `gh issue view` escribe en stderr cuando el
-# numero no corresponde a ninguna issue/PR del repo -- verificado en vivo
-# contra este mismo repositorio (`gh issue view 999999999`, 2026-08-02):
-# `GraphQL: Could not resolve to an issue or pull request with the number
-# of 999999999. (repository.issue)`, returncode 1. Cualquier OTRO fallo de
-# `gh` (no instalado, sin red, timeout, auth) no lleva esta frase -- esa
-# distincion es la que separa "la issue no existe" (rechazo real) de "no
-# se pudo comprobar" (RuntimeError, nunca silencio).
+# gh's stderr when the number is no issue/PR; any other gh failure means "could not check".
 _ISSUE_NOT_FOUND_MARKER = "Could not resolve to an issue or pull request"
 
 
 def issue_exists(issue: int) -> bool:
-    """`True` si `gh` confirma que la issue existe, `False` si `gh`
-    confirma que NO existe -- las dos son respuestas reales de `gh`
-    funcionando. Cualquier otro resultado (no instalado, sin red, timeout,
-    respuesta con otra forma) es un fallo real de la comprobacion, no un
-    "no existe", y se propaga como `RuntimeError` con la causa -- mismo
-    trato, mismo mensaje, que `health._last_activity_at` [PIEZAS.md
-    Sec.10.1, punto 1: "*no se puede comprobar* nunca es *esta bien*"].
+    """True if `gh` confirms the issue exists, False if it confirms it does not.
 
-    Publica a proposito (no `_issue_exists`): `bin/memory/work.py` la
-    reusa tal cual para su propia comprobacion de `--issue`, que NO pasa
-    por `validate_issue()` (esa funcion exige una `Note` terminada, y
-    `work.py` no construye ninguna) -- mismo precedente que promover los
-    ayudantes de caja de `report_render.py` a publicos cuando
-    `report_render_note.py` necesito reusarlos, en vez de una segunda
-    implementacion de la misma llamada a `gh`.
+    Any other outcome (gh missing, no network, timeout) raises RuntimeError. Also used by bin/memory/work.py.
     """
     try:
-        # encoding="utf-8", errors="replace": mismo motivo que
-        # health.py::_last_activity_at -- sin `encoding=`, `text=True`
-        # decodifica con el codec de la consola (cp1252 en Windows) y un
-        # caracter fuera de ese codec en la salida de `gh` deja
-        # `stdout`/`stderr` en `None` sin ninguna excepcion que capturar
-        # aqui [House, 2026-08-08]. `errors="replace"` no es opcional: la
-        # salida de `gh` no la controlamos.
+        # Explicit utf-8: the console codec (cp1252 on Windows) can leave stdout/stderr as None.
         proc = subprocess.run(
             ["gh", "issue", "view", str(issue), "--json", "number"],
             cwd=Path.cwd(),
@@ -120,10 +47,6 @@ def issue_exists(issue: int) -> bool:
 
     if proc.returncode == 0:
         return True
-    # (proc.stderr or ""): con encoding/errors fijados arriba esto ya no
-    # deberia poder ser `None`, pero esta es la rama de error -- leerla
-    # con un `in None`/`.strip()` pelado convertiria un fallo real de
-    # `gh` en un TypeError/AttributeError sin explicar nada.
     stderr = proc.stderr or ""
     if _ISSUE_NOT_FOUND_MARKER in stderr:
         return False
@@ -133,15 +56,7 @@ def issue_exists(issue: int) -> bool:
 
 
 def validate_issue(note: Note, issue: int | None) -> Rejection | None:
-    """Fila 8 [TEXTOS.md Sec.1.9]. `issue` no es un campo que se derive de
-    `note` -- igual que `stops`/`is_distillation` en `validator.py`, viaja
-    aparte porque solo puede invocarse antes de que la `Note` este
-    terminada [ver "ASUNCIONES DE FIRMA" en el docstring de
-    `validator.py`]. `issue is None` (el flag `--issue` no se dio) no
-    dispara ninguna llamada a `gh` -- no hay nada que comprobar, y esta es
-    la UNICA vez que se comprueba [TEXTOS.md Sec.1.9: "Esta es la unica
-    vez que se comprueba"].
-    """
+    """Reject a note whose `--issue` number does not exist on GitHub; None issue calls no `gh`."""
     if issue is None:
         return None
     if issue_exists(issue):
@@ -164,9 +79,7 @@ def validate_issue(note: Note, issue: int | None) -> Rejection | None:
     )
 
 
-# La vara de medir literal, D-065 textual -- una sola copia, la misma que
-# `bin/memory/note.py` relanza en el comando de `--issue N`/`--issue none
-# --quote` y la misma que `test_note_issue_gate.py` fija como contrato.
+# The issue-gate question, verbatim; the only copy.
 _MEASURING_STICK = (
     "¿cerrar esta nota exige trabajo — código, medir, construir — o "
     "solo una respuesta/decisión?"
@@ -189,14 +102,7 @@ def _quote_flag(note: Note) -> str:
 
 
 def _reject_work_not_allowed(note: Note) -> Rejection:
-    """`--work` fuera de Q/I -- mismo texto literal que
-    `validator.validate_fields()` ya usa para un campo no permitido
-    (`"Estos campos no existen para el tipo <T>: <campo>"`), para que sea
-    la MISMA mecanica de rechazo aunque `work` no sea un campo persistido
-    de `Note` [ver docstring del modulo, "QUE NO HACE"] -- por eso este
-    rechazo vive aqui, junto al resto de la aduana de issues, y no dentro
-    de `validate_fields()`, que solo conoce campos reales de `Note`.
-    """
+    """Reject `--work` outside Q/I, worded like validator.validate_fields()'s field rejection."""
     what = f"el campo no encaja con el tipo {note.type}"
     options = (f"Estos campos no existen para el tipo {note.type}: work",)
     command = (
@@ -209,11 +115,7 @@ def _reject_work_not_allowed(note: Note) -> Rejection:
 
 
 def _reject_missing_measuring_stick_answer(note: Note) -> Rejection:
-    """Ni `--issue` ni `--work` -- D-065, filas 1/2 del encargo. Las tres
-    salidas de relanzamiento son literales fijados por el propietario
-    (D-065/D-066): `--work no`, `--issue N`, `--issue none --quote
-    "<...>"`, each with the answers already given (`carry_accepted_flags`).
-    """
+    """Reject a Q/I note with neither `--issue` nor `--work`; offers the three relaunch commands."""
     what = f"{note.headline!r} no se guarda sin contestar la vara de medir"
     options = (
         _MEASURING_STICK,
@@ -237,16 +139,7 @@ def _reject_missing_measuring_stick_answer(note: Note) -> Rejection:
 
 
 def _reject_issue_none_not_allowed(note: Note) -> Rejection:
-    """`--issue none` fuera de Q/I -- Moriarty T2, 2026-08-26. El
-    centinela `"none"` solo tiene significado dentro de la aduana de
-    issues (D-065/D-066), exclusiva de Q/I: fuera de ahi no existe la
-    mecanica de "el dueño dijo que no, con cita" -- colarlo en silencio
-    resuelto a "sin issue" (lo que hacia `bin/memory/note.py::
-    _build_candidate` antes de este arreglo) pierde la intencion real de
-    quien tecleo el centinela a proposito. Un numero REAL de issue sigue
-    aceptandose igual en los siete tipos [D-044/D-045] -- este rechazo es
-    solo para el centinela `"none"`, nunca para `--issue` en si.
-    """
+    """Reject the `--issue none` sentinel outside Q/I; a real issue number stays valid."""
     what = f"--issue none no tiene sentido para el tipo {note.type}"
     options = (
         "El centinela 'none' es exclusivo de la aduana de issues (Q/I) -- fuera",
@@ -265,12 +158,7 @@ def _reject_issue_none_not_allowed(note: Note) -> Rejection:
 
 
 def _reject_issue_and_work_contradiction(note: Note) -> Rejection:
-    """`--issue N` + `--work no` juntos en Q/I -- Moriarty, 2026-08-26,
-    gravedad baja. Las dos respuestas a la vara de medir ("hace falta
-    trabajo, aqui esta la issue" / "no hace falta trabajo") no pueden
-    convivir en la misma nota: son las dos ramas EXCLUYENTES de D-065,
-    nunca una combinacion valida.
-    """
+    """Reject `--issue N` together with `--work no` on Q/I: the two answers exclude each other."""
     what = f"{note.headline!r} contesta la vara de medir con issue y work a la vez"
     options = (
         "issue y work no pueden convivir: --issue N dice que hace falta trabajo,",
@@ -291,10 +179,7 @@ def _reject_issue_and_work_contradiction(note: Note) -> Rejection:
 
 
 def _reject_issue_none_missing_quote(note: Note) -> Rejection:
-    """`--issue none` sin `--quote` -- D-066: el no siempre es del dueño y
-    siempre lleva cita, sin escape (a diferencia de `rules.add()`, aqui
-    NO existe un `--quote none` que deje la nota sin cita).
-    """
+    """Reject `--issue none` without the owner's quote; there is no `--quote none` escape here."""
     what = f"{note.headline!r} necesita la cita literal del dueño"
     options = (
         "El no a abrir una issue es una decision del dueño, nunca un default",
@@ -311,30 +196,10 @@ def _reject_issue_none_missing_quote(note: Note) -> Rejection:
 
 
 def validate_issue_gate(note: Note, issue, work: str | None) -> Rejection | None:
-    """La aduana de issues, D-065/D-066: solo Q/I contestan la vara de
-    medir [ver docstring del modulo].
+    """Issue gate: only Q/I notes answer whether closing them needs work.
 
-    `issue`/`work` NO son campos de `Note` -- viajan aparte, igual que
-    `stops` en `validator.validate_pain_question` [ver "ASUNCIONES DE
-    FIRMA" en `validator.py`]. `issue` es el valor CRUDO de `--issue`
-    (`None` ausente, el centinela literal `"none"`, o un `int`) -- ya
-    resuelto a `int | None` para `note.issue`/`validate_issue()` por
-    quien llama (`bin/memory/note.py`), pero esta funcion necesita
-    distinguir "ausente" de "`none` explicito", una distincion que se
-    pierde en cuanto se resuelve a `note.issue`.
-
-    Cinco comprobaciones, en orden [dos añadidas 2026-08-26, Moriarty
-    T2/ABUSE 1 -- las tres originales de D-065/D-066 intactas]: (1)
-    `work` fuera de Q/I rebota siempre; (2) `issue == "none"` fuera de
-    Q/I rebota -- el centinela solo existe dentro de la aduana de
-    issues, fuera de ahi coleaba resuelto a "sin issue" en silencio
-    [REGRESSION 1]; (3) dentro de Q/I, `issue` un `int` real Y `work ==
-    "no"` a la vez rebota -- las dos respuestas de la vara son
-    excluyentes [ABUSE 1]; va ANTES de (4) porque un `issue` real hace
-    que `issue is None and work is None` sea falso, y sin esto la
-    contradiccion pasaba sin que nada la mirara; (4) dentro de Q/I, ni
-    `issue` ni `work`, rebota -- la vara de medir, D-065; (5) dentro de
-    Q/I, `--issue none` sin `note.quote` con contenido, rebota -- D-066.
+    `issue` is the raw `--issue` value (None, the literal "none", or an int), so an absent
+    flag and an explicit "none" stay distinct. `work` is the raw `--work` value.
     """
     if note.type not in ("Q", "I"):
         if work is not None:

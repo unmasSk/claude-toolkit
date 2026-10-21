@@ -1,59 +1,6 @@
-"""El fichero de reglas -- los remembers. Fuera del sistema de memoria, a
-proposito.
+"""Rules file (remembers): add, retract and replace a rule line, each as one file write plus one commit.
 
-Fachada/api: `add()`/`retract()`/`replace()` (mas abajo) son las
-operaciones reales de esta pieza; el resto se partio en tres hermanos
-por concernencia:
-
-  - `rules_validate.py` -- valida `kind`/`text`/`quote` ANTES de tocar
-    git o el fichero.
-  - `rules_similarity.py` -- reconoce una linea ya escrita, detecta
-    casi-duplicados por texto, y localiza/quita la linea exacta que
-    `retract()`/`replace()` necesitan.
-  - `rules_commit.py` -- candado, ruta del fichero, lectura, y la
-    transaccion completa de comitear (o deshacer) una regla.
-
-Este fichero importa de los tres e importa SOLO de ellos. Reexporta
-`read_all`/`rules_file_path`/`iter_rule_texts`/`similar_existing`/
-`strip_quote_suffix` bajo el mismo nombre, sin guion bajo.
-
-Un remember NO es memoria de proyecto: no lleva zonas, no pasa por la
-aduana de zonas, no aparece en ninguna busqueda ni informe, y no lo lee
-ningun agente.
-
-FORMATO DEL COMMIT:
-
-    [remember][user] 🧠 <texto>
-    [remember][claude] 🧠 <texto>
-
-Titular en espanol, tope de 200 caracteres. Cuerpo: solo
-`Searched: <lo buscado>` cuando se da (D-098); nunca entra en `rules.md`.
-
-`add()` (I-003) comitea de verdad: escribe la linea en el fichero
-(`gitcmd.atomic_write()`, atomico) y la comitea con
-`notes_commit.stage_and_commit()` -- el mismo mecanismo compartido que
-`gitmem work`/`gitmem wip`/`gitmem note`. Si el commit falla, el fichero
-se restaura a su contenido anterior (`notes_commit.
-restore_snapshot_best_effort()`) y `add()` devuelve `ok=False` con
-`git_error` -- nunca `ok=True` sin un commit real detras.
-
-`retract()`/`replace()` comparten el MISMO camino atomico fichero+git
-(`commit_or_restore`, bajo el mismo `lock_resource()`) -- una regla
-retirada por este camino nunca deja a `health.coherence_rules()`
-gritando una discrepancia falsa de "edicion a mano", porque HEAD y el
-arbol de trabajo se mueven juntos o no se mueven. `replace()` es un
-UNICO `atomic_write()` + UNICO `commit_or_restore()` sobre el contenido
-ya con la linea vieja quitada y la nueva anadida -- nunca dos commits
-encadenados, que dejarian una ventana real donde el retiro entra y el
-alta no.
-
-Quien lo llama: `bin/memory/rule.py` y el comando `/remember`.
-
-`lib/memory/` no importa nada fuera de la biblioteca estandar de Python.
-Imports planos entre hermanos. Este proyecto no defiende contra un
-atacante externo -- lo que importa es que el sistema no se rompa a si
-mismo: el fallo real es que el fichero y el commit queden
-desincronizados, nunca que uno reporte exito sin el otro.
+On a failed commit the file is restored, so rules.md and HEAD never diverge.
 """
 
 import gitcmd
@@ -66,8 +13,8 @@ from rules_commit import (
     repo_root,
     rules_file_path,
 )
-from rules_commit import read_all  # noqa: F401 -- reexportado, add() no lo usa
-from rules_similarity import (  # noqa: F401 -- iter_rule_texts/strip_quote_suffix reexportados
+from rules_commit import read_all  # noqa: F401 -- re-exported
+from rules_similarity import (  # noqa: F401 -- iter_rule_texts/strip_quote_suffix re-exported
     find_rule_line,
     iter_rule_texts,
     remove_rule_line,
@@ -86,10 +33,7 @@ from rules_validate import (
 
 
 def _with_searched(subject: str, searched: str | None) -> str:
-    """El commit lleva `--searched` en su cuerpo [D-098]; `rules.md` solo
-    recibe el titular, asi que lo buscado nunca entra en el fichero.
-    Plegado como un campo de nota (`format._fold`): cada salto, seguido de
-    un espacio de continuacion."""
+    """Append a folded `Searched:` body to the commit message; rules.md never gets it."""
     if searched is None:
         return subject
     folded = searched.replace("\n", "\n ")
@@ -97,9 +41,7 @@ def _with_searched(subject: str, searched: str | None) -> str:
 
 
 def _check_new_rule(text: str, kind: str, quote, replaces: str | None = None):
-    """`(quote_has_content, None)` si `kind`/`text`/`quote` de una regla
-    nueva valen, o `(False, WriteResult)` con el rechazo -- las mismas
-    validaciones, en el mismo orden, para `add()` y `replace()`."""
+    """Validate a new rule: `(quote_has_content, None)` if valid, else `(False, WriteResult)`."""
     if "\n" in kind or not kind.strip():
         rejection = reject_invalid_kind(kind)
     elif "\n" in text or not text.strip():
@@ -114,41 +56,10 @@ def _check_new_rule(text: str, kind: str, quote, replaces: str | None = None):
 
 
 def add(text: str, kind: str, quote=QUOTE_NOT_GIVEN, searched: str | None = None) -> WriteResult:
-    """Anade una regla: una linea mas en el fichero de reglas, escrita de
-    forma atomica, seguida de un commit real. `ok=True` implica que el
-    commit existe de verdad, nunca solo que el fichero se escribio.
+    """Append a rule line and commit it; `ok=True` only when the commit exists.
 
-    `quote` -- las palabras literales de quien la dijo, obligatoria en la
-    practica para cualquier `kind` (kind-agnostic: exigirla solo para
-    `kind == "user"` dejaba un hueco). Si se pasa y viene en blanco,
-    rebota, salvo el literal `"none"` (`--quote none`, la unica salida
-    para "Claude se deja una nota a si mismo"). Un llamador que ni
-    siquiera menciona `quote` (`add(text, kind)`) no activa esta
-    validacion. Con cita real, la linea escrita lleva un sufijo
-    ` — «<cita>»`; `iter_rule_texts()` sigue devolviendo la linea entera.
-
-    Rebota SIN tocar el fichero si `text`/`kind`/`quote` fallan sus
-    validaciones (`reject_invalid_text`/`reject_invalid_kind`/
-    `validate_quote`) -- salto de linea, vacio, o sobre el tope de
-    caracteres.
-
-    Si el commit falla o revienta a mitad, el fichero se restaura a
-    `previous_content` con `notes_commit.restore_snapshot_best_effort()`
-    y `add()` devuelve `ok=False` con `git_error` puesto al mensaje real
-    de git.
-
-    **Frontera aceptada, no se reabre sin que el propietario lo pida:**
-    `add()` lee `rules.md` dos veces bajo el candado -- una al empezar, y
-    otra inmediatamente antes de `gitcmd.atomic_write()`, para recoger
-    una escritura externa (edicion a mano) que aterrice entre medias. La
-    ventana entre esa SEGUNDA lectura y la escritura misma sigue siendo
-    fisica y no se cierra del todo: cerrarla exigiria un compare-and-swap
-    a nivel de fichero que `gitcmd.atomic_write()` no implementa. Se
-    acepta porque `add()`/`retract()`/`replace()` son los UNICOS
-    escritores reales de `rules.md` en todo el sistema, y los tres pasan
-    por el mismo `lock_resource()` -- se serializan entre si sin
-    excepcion. Solo una edicion manual que ignore la cabecera del
-    fichero ("no editar") podria caer justo en esa rendija.
+    `quote`, when passed, must be non-blank or the literal "none"; a real quote is
+    appended as ` — «<quote>»`. Invalid input is rejected without touching the file.
     """
     quote_has_content, rejected = _check_new_rule(text, kind, quote)
     if rejected is not None:
@@ -165,16 +76,12 @@ def add(text: str, kind: str, quote=QUOTE_NOT_GIVEN, searched: str | None = None
         path.parent.mkdir(parents=True, exist_ok=True)
         file_existed_before, previous_content = read_current_rules_content(path)
 
-        # Re-chequeo bajo el candado, lo mas cerca posible de la escritura
-        # real: recoge una edicion externa a `rules.md` que haya aterrizado
-        # entre la lectura de arriba y este punto.
+        # Re-read right before writing to pick up a manual edit made meanwhile.
         file_existed_before, previous_content = read_current_rules_content(path)
 
         gitcmd.atomic_write(path, previous_content + subject + "\n")
 
-        # `file_existed_before` viaja para que, si el commit falla en el
-        # primer remember del proyecto, se borre el fichero entero en vez
-        # de restaurarlo a una cabecera huerfana.
+        # file_existed_before: on a failed first rule the file is deleted, not restored.
         message = _with_searched(subject, searched)
         git_error = commit_or_restore(path, previous_content, message, root, file_existed_before)
         if git_error is not None:
@@ -184,25 +91,9 @@ def add(text: str, kind: str, quote=QUOTE_NOT_GIVEN, searched: str | None = None
 
 
 def retract(text: str, kind: str) -> WriteResult:
-    """Retira una regla: quita la linea `[kind]` cuyo texto BASE (sin
-    cita) case exacto con `text`, escrita de forma atomica, seguida de
-    un commit real -- mismo criterio que `add()`: `ok=True` implica que
-    el commit existe de verdad, nunca solo que el fichero cambio.
+    """Remove the `[kind]` line whose text (without quote) equals `text`, and commit it.
 
-    Identifica la linea por `find_rule_line()` (`rules_similarity.py`),
-    que ya compara sobre el texto SIN cita -- quien retira una regla se
-    refiere a lo que dijo, no a la cita que la acompana en el fichero.
-
-    Rebota SIN tocar el fichero si `text`/`kind` fallan sus
-    validaciones (mismas que `add()`: salto de linea, vacio) o si
-    ninguna linea `[kind]` casa con `text` (`reject_rule_not_found()`)
-    -- nunca un no-op silencioso que parezca exito. Un `kind` correcto
-    pero un texto guardado bajo OTRO `kind` cae en el mismo rechazo:
-    `find_rule_line()` filtra por `kind` antes de comparar texto.
-
-    Si el commit falla o revienta a mitad, el fichero se restaura a
-    `previous_content` (mismo mecanismo que `add()`) y `retract()`
-    devuelve `ok=False` con `git_error` puesto al mensaje real de git.
+    No matching line under that `kind` is a rejection, never a silent no-op.
     """
     if "\n" in kind or not kind.strip():
         return WriteResult(
@@ -217,8 +108,7 @@ def retract(text: str, kind: str) -> WriteResult:
     with gitcmd.file_lock(lock_resource(root)):
         path = rules_file_path(root)
         file_existed_before, previous_content = read_current_rules_content(path)
-        # Re-chequeo bajo el candado, mismo motivo que en add(): recoge
-        # una edicion externa a rules.md aterrizada entre medias.
+        # Re-read, same reason as in add().
         file_existed_before, previous_content = read_current_rules_content(path)
 
         matched_line = find_rule_line(previous_content, text, kind)
@@ -246,19 +136,9 @@ def retract(text: str, kind: str) -> WriteResult:
 def replace(
     old_text: str, new_text: str, kind: str, quote=QUOTE_NOT_GIVEN, searched: str | None = None
 ) -> WriteResult:
-    """Sustituye una regla: quita la linea `[kind]` cuyo texto BASE case
-    exacto con `old_text` y anade `new_text` en su lugar, en UN SOLO
-    `atomic_write()` seguido de UN SOLO `commit_or_restore()` -- nunca
-    dos commits encadenados. Atomica de verdad: o el commit entra con
-    las dos mitades (retiro + alta) dentro, o `commit_or_restore()`
-    deshace la escritura entera y `old_text` sigue exactamente como
-    estaba, sin que `new_text` haya aparecido en ningun sitio.
+    """Swap the `[kind]` rule `old_text` for `new_text` in one write and one commit.
 
-    Mismas validaciones que `add()` sobre `kind`/`new_text`/`quote`.
-    Rebota SIN tocar el fichero si ninguna linea `[kind]` casa con
-    `old_text` (`reject_rule_not_found()`), mismo criterio que
-    `retract()` -- un `kind` equivocado para una regla que si existe
-    cae en el mismo rechazo.
+    Validates like add() and rejects like retract(); a failed commit leaves the old rule intact.
     """
     quote_has_content, rejected = _check_new_rule(new_text, kind, quote, replaces=old_text)
     if rejected is not None:
@@ -268,7 +148,7 @@ def replace(
     with gitcmd.file_lock(lock_resource(root)):
         path = rules_file_path(root)
         file_existed_before, previous_content = read_current_rules_content(path)
-        # Re-chequeo bajo el candado, mismo motivo que en add()/retract().
+        # Re-read, same reason as in add().
         file_existed_before, previous_content = read_current_rules_content(path)
 
         matched_line = find_rule_line(previous_content, old_text, kind)

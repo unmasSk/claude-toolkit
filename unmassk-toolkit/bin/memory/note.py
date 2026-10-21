@@ -1,22 +1,15 @@
 #!/usr/bin/env python3
-"""bin/memory/note.py -- guarda una nota de memoria (D/M/R/Q/X/I/B).
+"""Save a memory note (D/M/R/Q/X/I/B) and print the result.
 
-Arma el `Context` real, llama a `notes.write`, `notes.replace` (con un
-`--replaces` real), `notes.promote` (con `--promotes`) o
-`notes.discard_alternatives` (con `--discard`) e imprime lo que devuelve.
-Lo que es valido lo decide `validator.py`/`notes.py`, nunca este script.
-
-    note.py <TIPO> --zones <zona1> <zona2> "<titular>" \\
+    note.py <TYPE> --zones <zone1> <zone2> "<headline>" \\
         [--why "..."] [--description "..."] [--keys k1 k2 ...] \\
         [--stops yes|no] [--origin <id1> <id2> ...] \\
         [--replaces <ID>|none] [--awaits "..."] [--issue N|none] \\
         [--work no] [--quote "..."] \\
-        [--discard "<titular alternativa>" "<porque>" ...] \\
-        [--promotes <ID de una Q>] --searched "<lo buscado>: <lo encontrado>"
+        [--discard "<alternative headline>" "<why>" ...] \\
+        [--promotes <Q id>] --searched "<searched>: <found>"
 
-`--stops`, `--issue` y `--work` no son campos de `Note`: se comprueban
-aparte, antes de escribir nada. `--keys` se normaliza y la correccion se
-enseña al guardar, nunca se rechaza.
+`--stops`, `--issue` and `--work` are checked before writing; they are not `Note` fields.
 """
 
 import argparse
@@ -33,7 +26,7 @@ _LIB_MEMORY_DIR = os.path.join(_TOOLKIT_ROOT, "lib", "memory")
 if _LIB_MEMORY_DIR not in sys.path:
     sys.path.insert(0, _LIB_MEMORY_DIR)
 
-from utf8 import force_utf8_streams  # noqa: E402  (import tras sys.path)
+from utf8 import force_utf8_streams  # noqa: E402  (import after sys.path)
 
 force_utf8_streams()
 
@@ -51,9 +44,7 @@ from vocabulary import MARKER_KEYS  # noqa: E402
 
 
 def _issue_arg(value):
-    """`--issue`: un numero (`int`) o el centinela literal `"none"`; otra cadena
-    es un error de argparse.
-    """
+    """`--issue`: an `int` or the literal `"none"`."""
     if value == "none":
         return value
     try:
@@ -82,12 +73,11 @@ def _parse_args(argv):
     parser.add_argument("--replaces", type=_replaces_arg, default=None)
     parser.add_argument("--awaits", default=None)
     parser.add_argument("--issue", type=_issue_arg, default=None)
-    # Aduana de issues de Q/I (D-065/D-066): un "si" se contesta con `--issue`.
+    # Q/I issue gate: a "yes" is answered with `--issue`.
     parser.add_argument("--work", choices=("no",), default=None)
     parser.add_argument("--quote", default=None)
-    parser.add_argument("--promotes", default=None)  # asciende una Q
-    # D-098: obligatorio, pero lo exige `main()` con la pregunta -- un
-    # `required=True` daria el `usage:` de argparse en vez de la pregunta.
+    parser.add_argument("--promotes", default=None)  # promotes a Q
+    # Required, but enforced in `main()` so the user gets the question, not argparse usage.
     parser.add_argument("--searched", default=None)
     parser.add_argument(
         "--discard", action="append", nargs=2, metavar=("HEADLINE", "WHY"), default=None
@@ -96,9 +86,7 @@ def _parse_args(argv):
 
 
 def _existing_in_zone_pair(zone1, zone2, archived):
-    """Notas vivas de la pareja de zonas en cualquier orden, sin repetir id
-    ni incluir las de `archived`.
-    """
+    """Live notes of the zone pair in either order, deduplicated, excluding `archived`."""
     seen: set[str] = set()
     matches = []
     for note in (*query.by_zone(zone1, zone2), *query.by_zone(zone2, zone1)):
@@ -111,12 +99,9 @@ def _existing_in_zone_pair(zone1, zone2, archived):
 
 
 def _build_context(pm, zone1, zone2):
-    """El `Context` real para `validator.validate_note`, con `zone1`/`zone2`
-    resueltos a su nombre canonico (un alias se guarda con el nombre real).
-    Devuelve `(ctx, zone1, zone2)`.
+    """Build the validator `Context` and resolve both zones to canonical names.
 
-    `existing_in_zone` lleva solo las notas vivas de la pareja; `known_ids`
-    incluye las archivadas, porque un puntero puede citar una nota archivada.
+    Returns `(ctx, zone1, zone2)`. `known_ids` includes archived notes.
     """
     zones_map = zones_lib.load(pm / "zones.json")
     zone1 = zones_lib.resolve(zone1, zones_map) or zone1
@@ -135,9 +120,7 @@ def _build_context(pm, zone1, zone2):
 
 
 def _corrected_key_pairs(raw_keys, normalized_keys):
-    """Las parejas (forma escrita, forma canonica) de las keys marcadoras que
-    se corrigieron de verdad.
-    """
+    """Return `(typed, canonical)` pairs for the marker keys that were corrected."""
     normalized_set = set(normalized_keys)
     pairs = []
     for raw in raw_keys:
@@ -148,7 +131,7 @@ def _corrected_key_pairs(raw_keys, normalized_keys):
 
 
 def _build_candidate(args, normalized_keys, zone1, zone2):
-    # "none" se guarda como sin issue; la aduana recibe `args.issue` sin resolver.
+    # "none" is stored as no issue; the gate gets the raw `args.issue`.
     issue = args.issue if isinstance(args.issue, int) else None
     return Note(
         type=args.type,
@@ -170,10 +153,7 @@ def _build_candidate(args, normalized_keys, zone1, zone2):
 
 
 def _build_discard_candidates(discard_pairs, zone1, zone2, searched):
-    """Una nota `X` por pareja `(titular, porque)` de `--discard`, en la zona
-    de la decision y con su mismo `--searched`. `origin` lo pone
-    `discard_alternatives()`.
-    """
+    """One `X` note per `--discard` (headline, why) pair, in the decision's zones."""
     return tuple(
         Note(
             type="X",
@@ -202,7 +182,7 @@ def _print_success(result, args, normalized_keys):
 
 
 def _print_success_with_discards(decision_result, alternatives, discard_results, args, normalized_keys):
-    """La linea de la D va la ultima; keys corregidas y descartes, antes."""
+    """Print the corrected keys and the discards first, the decision's line last."""
     corrected = _corrected_key_pairs(args.keys, normalized_keys)
     suffixes = []
     lines = []
@@ -222,19 +202,16 @@ def _print_success_with_discards(decision_result, alternatives, discard_results,
 
 
 def _relaunch_words(command, headline):
-    """The shell words of a relaunch, headline cut first: rejections print it
-    raw between double quotes, so a flag named in it is not a flag given."""
+    """Return the shell words of a relaunch command, with the quoted headline removed."""
     rest = command.replace(f'"{headline}"', "", 1)
     try:
         return set(shlex.split(rest))
-    except ValueError:  # an unbalanced quote outside the headline (a zone name): plain words still hold the flags
+    except ValueError:  # unbalanced quote outside the headline: fall back to plain words
         return set(rest.split())
 
 
 def _carry_cli_flags(one_rejection, args):
-    """Los relanzamientos `gitmem note` arrastran `--promotes`, `--discard` y
-    las respuestas de la aduana de issues (`--issue`, `--quote`, `--work`),
-    que el rechazo no conoce."""
+    """Append `--promotes`, `--discard` and the issue-gate answers to `gitmem note` relaunches."""
     promotes = f" --promotes {shlex.quote(args.promotes)}" if args.promotes is not None else ""
     discards = "".join(f" --discard {shlex.join(pair)}" for pair in args.discard or ())
     work = f" --work {args.work}" if args.work is not None else ""
@@ -265,9 +242,7 @@ def _carry_cli_flags(one_rejection, args):
 
 
 def _print_rejection(one_rejection, args, *, carry_cli=True):
-    """Todo rechazo de este script arrastra el `--searched` ya contestado
-    en sus relanzamientos [D-098, ver `validator.carry_searched`]; los de la
-    nota que aun no se escribio arrastran tambien `--promotes`/`--discard`."""
+    """Print a rejection; its relaunches carry `--searched` and, if `carry_cli`, the CLI flags."""
     if carry_cli:
         one_rejection = _carry_cli_flags(one_rejection, args)
     carried = validator.carry_searched(one_rejection, args.searched, "gitmem note ")
@@ -275,8 +250,7 @@ def _print_rejection(one_rejection, args, *, carry_cli=True):
 
 
 def _without_discards(argv, dropped):
-    """`argv` sin las parejas `--discard <titular> <porque>` de `dropped`,
-    tantas veces como cuente cada pareja."""
+    """Return `argv` without the `--discard` pairs in `dropped`, once per count."""
     left = collections.Counter(dropped)
     out, i = [], 0
     while i < len(argv):
@@ -293,10 +267,7 @@ def _without_discards(argv, dropped):
 
 
 def _print_refused_discards(rejections, alternatives, ctx, argv):
-    """Una alternativa rebotada: no se guardo nada. Sus rechazos salen sin
-    su Relanza (una X suelta perderia la decision) y el unico Relanza es la
-    decision entera sin las parejas rebotadas.
-    """
+    """Print refused discards without relaunches, then one relaunch of the decision without them."""
     for one_rejection in rejections:
         print(rejection_.render_terminal(dataclasses.replace(one_rejection, relaunch=())))
         print()
@@ -315,11 +286,7 @@ def _print_refused_discards(rejections, alternatives, ctx, argv):
 
 
 def _handle_discard(candidate, args, normalized_keys, ctx, zone1, zone2, argv):
-    """Rama `--discard`: `notes.discard_alternatives()` valida todas las
-    alternativas y solo entonces escribe la decision (via `_write_decision`)
-    y cada alternativa en su commit. Un primer resultado fallido es que no se
-    escribio nada; un fallo posterior es de git.
-    """
+    """Write a decision with `--discard` alternatives; nothing is written if any is refused."""
     alternatives = _build_discard_candidates(args.discard, zone1, zone2, args.searched)
     decision_called = []
 
@@ -363,10 +330,7 @@ def _handle_discard(candidate, args, normalized_keys, ctx, zone1, zone2, argv):
 
 
 def _write_decision(candidate, args, ctx):
-    """Escribe la nota: `notes.promote()` con `--promotes`; `notes.replace()`
-    con un `--replaces` real; si no, `notes.write()` (con `replaces` en `None`
-    o `"none"` tal cual).
-    """
+    """Write the note via `notes.promote()`, `notes.replace()` or `notes.write()`."""
     if args.promotes is not None:
         return notes.promote(candidate, args.promotes, ctx)
     if args.replaces is not None and args.replaces != "none":
@@ -375,7 +339,7 @@ def _write_decision(candidate, args, ctx):
 
 
 def _handle_write_or_replace(candidate, args, normalized_keys, ctx):
-    """Rama sin `--discard`: escribe la nota via `_write_decision`."""
+    """Write the note without `--discard` and print the result."""
     result = _write_decision(candidate, args, ctx)
     if not result.ok:
         if result.rejections:
@@ -409,7 +373,7 @@ def main(argv):
         _print_rejection(pain_rejection, args)
         return 1
 
-    # `args.issue` sin resolver: distingue "ausente" de "none" explicito.
+    # Raw `args.issue`: tells "absent" from an explicit "none".
     gate_rejection = validator.validate_issue_gate(candidate, args.issue, args.work)
     if gate_rejection is not None:
         _print_rejection(gate_rejection, args)
@@ -433,6 +397,6 @@ def main(argv):
 if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
-    except Exception as exc:  # nunca una traza de pila -- PIEZAS.md Sec.10
+    except Exception as exc:  # never a stack trace
         print(f"note.py: {exc}", file=sys.stderr)
         sys.exit(1)

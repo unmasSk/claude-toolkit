@@ -1,38 +1,27 @@
-"""Que linea de `gitmem` tecleada guarda una nota o una regla -- la
-lectura que necesita la aduana (`hooks/customs.py`) para hacer la
-pregunta de D-098 ANTES de que el comando corra.
+"""Detect a typed `gitmem` command that saves a note or a rule without `--searched`.
 
-Aqui viven tambien, una sola vez, las dos listas de palabras con las que
-`bin/memory/rule.py` decide que `gitmem rule <palabra>` no guarda: si la
-aduana y el comando las tuvieran cada uno por su lado, una palabra
-anadida a una sola volveria a bloquear una lectura o a dejar pasar un
-guardado [Moriarty ABUSE con `help`, 2026-10-19].
-
-Pura: recibe las sentencias ya tokenizadas (el tokenizador de shell es
-el de la aduana) y no abre ficheros ni llama a git.
+Pure: takes statements already tokenized by the caller; no file or git access.
 """
 
 import re
 
 from validator_searched import SEARCHED_FLAG, searched_given
 
-# `gitmem rule list`/`ls` leen las reglas en vez de guardar una.
+# `gitmem rule list`/`ls` read rules instead of saving one.
 RULE_READ_WORDS = ("list", "ls")
-# Palabras sueltas que `gitmem rule` rebota sin guardar: son subcomandos de
-# otras familias y teclearlas aqui es la equivocacion natural [House,
-# 2026-08-05: `gitmem rule list` guardaba una regla "list"].
+# Single words `gitmem rule` refuses to save (subcommands of other families).
 RULE_NOT_A_RULE_WORDS = ("add", "find", "show", "read", "verify", "rebuild", "help")
 
 _GITMEM_PROGRAM_TOKEN_RE = re.compile(r"(?:^|/)gitmem$")
 _ENV_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
-# Los flags de `bin/memory/rule.py`, todos con un valor detras.
+# Flags of `bin/memory/rule.py` that take a value.
 _RULE_VALUE_FLAGS = frozenset({"--kind", "--quote", "--retract", "--replaces", SEARCHED_FLAG})
-# Pedir la ayuda de argparse no guarda nada [Moriarty ABUSE, 2026-10-19].
+# Asking argparse for help saves nothing.
 _HELP_FLAGS = ("-h", "--help")
 
 
 def _flag_value(tokens, flag):
-    """El valor de `flag` en `tokens` (`--flag X` o `--flag=X`), o `None`."""
+    """Value of `flag` in `tokens` (`--flag X` or `--flag=X`), or `None`."""
     for i, tok in enumerate(tokens):
         if tok == flag:
             return tokens[i + 1] if i + 1 < len(tokens) else None
@@ -42,8 +31,7 @@ def _flag_value(tokens, flag):
 
 
 def _rule_saves(rest):
-    """`gitmem rule ...` guarda (alta o `--replaces`) -- leer, `list`/`ls`,
-    una palabra suelta que rule.py rebota y `--retract` no."""
+    """True when `gitmem rule ...` saves (new rule or `--replaces`), not reads or retracts."""
     flags = {tok.split("=", 1)[0] for tok in rest if tok.startswith("--")}
     if "--retract" in flags:
         return False
@@ -63,18 +51,15 @@ def _rule_saves(rest):
 
 
 def find_unanswered_save(statements):
-    """`(stmt_index, tokens)` de la primera sentencia que ES un `gitmem
-    note`/`gitmem rule` que guarda sin `--searched` con contenido, o
-    `None`. `statements` es la lista de sentencias tokenizadas del
-    comando, o `None` si no se pudo tokenizar. Solo cuenta `gitmem` en
-    posicion de programa: un `grep "gitmem note"` o un `echo gitmem note`
-    solo lo mencionan."""
+    """`(stmt_index, tokens)` of the first statement saving a note/rule without `--searched`, or `None`.
+
+    `statements` is the tokenized command, or `None` if it could not be tokenized.
+    Only `gitmem` in program position counts.
+    """
     if statements is None:
         return None
     for stmt_index, statement in enumerate(statements):
-        # `\<salto>` (continuacion de linea) sale de shlex como un token
-        # "\n" suelto: fuera, o el relanzamiento lleva un argumento que es
-        # un salto de linea y obedecerlo rebota.
+        # A line continuation comes out of shlex as a lone "\n" token.
         tokens = [tok for tok in statement if tok != "\n"]
         while tokens and _ENV_ASSIGNMENT_RE.match(tokens[0]):
             tokens.pop(0)

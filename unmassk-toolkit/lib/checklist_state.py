@@ -1,35 +1,6 @@
-"""
-checklist_state.py -- the one per-session file two hooks share without
-ever talking to each other directly (docs/plan/casillas-por-programa.md).
+"""Per-session checklist registry shared by `skill-checklist-inject.py` (writer) and `checklist-gate.py` (reader).
 
-`hooks/skill-checklist-inject.py` (PostToolUse on the Skill tool) WRITES
-which process skill loaded and which checklist boxes it declares. Later,
-`hooks/checklist-gate.py` (Stop) READS that same file to know what must
-exist on the task board before the session is allowed to close, and
-writes back only the block counter (protection 2, see module docstring
-of checklist-gate.py). Neither hook imports the other; this module is
-the only contract between them.
-
-File: <project_root>/.claude/.unmassk/session-checklists/<session_id>.json
-(project_root = resolve_project_root(payload cwd): the git top-level)
-    {
-        "session_id": "...",
-        "skills": [{"skill": "unmassk-flow", "boxes": ["...", ...],
-                    "procedures": {...}}, ...],   # procedures: optional (D-121)
-        "block_count": 0
-    }
-
-Resets naturally on /clear: a new session_id means a new, absent file --
-both hooks start from the same empty state together (docs/plan, "Riesgo
-tecnico": "el registro de la pieza 2 se guarda POR SESION para que ambos
-lados se reseteen juntos").
-
-Concurrency: every read-modify-write of this file MUST happen inside
-`locked()` -- without it, two concurrent Skill loads (flow + audit) each
-read the same content, each appended their own entry, and whichever
-save_registry() call landed last silently discarded the other's. Same
-class of lost-update race that `git_helpers.file_lock()` closes
-elsewhere in this codebase.
+File: <project_root>/.claude/.unmassk/session-checklists/<session_id>.json; every read-modify-write runs inside `locked()`.
 """
 
 from __future__ import annotations
@@ -54,31 +25,16 @@ from git_helpers import (  # noqa: E402  (import after sys.path mutation)
 
 _SUBDIR = "session-checklists"
 
-# Every dash glyph the model might type in place of the manifest's own
-# em dash (U+2014) -- en dash (U+2013), hyphen (U+2010), minus sign
-# (U+2212) -- folded to plain ASCII '-' before any box-vs-task-subject
-# comparison. A byte-exact comparison rejects real, completed work the
-# instant Claude types a different (but visually identical) dash.
+# Dash variants folded to ASCII '-' before comparing box text with task subjects.
 _DASH_VARIANTS = "—–‐−"
 _DASH_TRANSLATION = str.maketrans({ch: "-" for ch in _DASH_VARIANTS})
 _WHITESPACE_RE = re.compile(r"\s+")
 
 
 def normalize_box_text(value) -> str:
-    """Canonical form for comparing a checklist box's declared text
-    against a task board subject -- the ONE shared function both hooks
-    must run their text through. NFKD-decomposes then drops every
-    combining diacritic ('Cafe'/'Café'/'CAFE' must all match), case-folds
-    (not `lower()` -- correct for non-ASCII), folds every dash variant to
-    ASCII '-', collapses repeated whitespace, strips. Better to accept a
-    cosmetic difference than to block real, completed work over one.
-    Non-string input normalizes to "" (never raises).
+    """Lowercase, accent-free, dash- and whitespace-folded form of a box text; "" for non-strings.
 
-    Duplicates `lib/memory/textnorm.py::normalize_text` on purpose, NOT
-    imported from there: this file lives outside `lib/memory/`, which
-    imports nothing outside it and nothing outside it imports back in
-    (`test_boundary.py`) -- do not "deduplicate" these two without
-    re-reading that boundary first.
+    Kept separate from `lib/memory/textnorm.py` on purpose: `lib/memory/` has an import boundary.
     """
     if not isinstance(value, str):
         return ""
@@ -90,14 +46,7 @@ def normalize_box_text(value) -> str:
 
 
 def is_valid_procedures(value) -> bool:
-    """True when `value` has the shape a checklist manifest's optional
-    `procedures` key must have (D-121): a non-empty dict of procedure name
-    -> {"selector": non-empty str, optional "boxes": list of str}. A
-    procedure WITHOUT "boxes" means "the manifest's top-level boxes" (the
-    full list); an empty "boxes" list means "nothing to expect". The one
-    shape check both hooks share: the inject refuses a manifest that fails
-    it, the gate falls back to the full list for a registry entry that
-    fails it."""
+    """True when `value` is a valid `procedures` map: name -> {"selector": str, optional "boxes": list[str]}."""
     if not isinstance(value, dict) or not value:
         return False
     for name, spec in value.items():
@@ -114,14 +63,7 @@ def is_valid_procedures(value) -> bool:
 
 
 def resolve_project_root(cwd: str) -> str:
-    """The git top-level containing `cwd` (the nearest ancestor holding a
-    `.git` directory or worktree/submodule file), or `cwd` unchanged
-    outside git. Both hooks key the registry on this, so a Skill loaded
-    from the repo root and a Stop fired from `src/` share ONE registry
-    (and one block counter), and a load from `src/` never seeds a
-    `src/.claude/`. A filesystem walk, not `git rev-parse`: the Stop gate
-    never launches a process (checklist-gate.py, protection 3). Never
-    raises -- any failure falls back to `cwd`, as before this existed."""
+    """Nearest ancestor of `cwd` holding `.git` (filesystem walk, no process), or `cwd`; never raises."""
     try:
         current = os.path.realpath(cwd)
         while True:
@@ -144,13 +86,7 @@ def _registry_dir(project_root: str) -> str:
 
 
 def is_safe_path_component(value) -> bool:
-    """True only when `value` is a non-empty string usable as a SINGLE
-    path component with no risk of aliasing outside the layout this
-    module declares: a session_id of `"foo/../../bar"` would resolve to
-    a DIFFERENT file entirely, and both land INSIDE project_root, so
-    `verify_path_within_project()`'s "don't escape the repo" guard never
-    catches it.
-    """
+    """True when `value` is a non-empty single path component (no separators, no `..`)."""
     return (
         isinstance(value, str)
         and value != ""
@@ -161,12 +97,7 @@ def is_safe_path_component(value) -> bool:
 
 
 def registry_path(project_root: str, session_id: str) -> str:
-    """The registry file path for this session, verified to stay inside
-    project_root. Safe to call before the file or its directory exists.
-    Raises ValueError when session_id isn't a safe single path component
-    -- callers already catch this as part of their broad
-    "unreadable/unwritable" exception handling.
-    """
+    """Registry file path for this session, verified inside project_root; ValueError on an unsafe session_id."""
     if not is_safe_path_component(session_id):
         raise ValueError(f"unsafe session_id for registry path: {session_id!r}")
     path = os.path.join(_registry_dir(project_root), f"{session_id}.json")
@@ -174,9 +105,7 @@ def registry_path(project_root: str, session_id: str) -> str:
 
 
 def ensure_registry_dir(project_root: str) -> str:
-    """Create the registry directory (and its parent .claude/.unmassk/,
-    via ensure_runtime_dir) if missing. Returns the verified directory
-    path."""
+    """Create the registry directory if missing and return its verified path."""
     ensure_runtime_dir(project_root)
     sc_dir = _registry_dir(project_root)
     verify_path_within_project(sc_dir, project_root)
@@ -186,19 +115,9 @@ def ensure_registry_dir(project_root: str) -> str:
 
 @contextlib.contextmanager
 def locked(project_root: str, session_id: str):
-    """Exclusive cross-process lock around a read-modify-write of this
-    session's registry. Callers must do their ENTIRE load_registry() ->
-    mutate -> save_registry() cycle inside this context -- see the
-    module docstring's "Concurrency" section for the race this closes.
+    """Exclusive lock around a load -> mutate -> save cycle of this session's registry.
 
-    Every failure mode that can happen BEFORE the caller's body runs
-    (unsafe/missing session_id, ensure_registry_dir()/registry_path()
-    raising, or file_lock() itself failing to even acquire the lock --
-    e.g. a read-only session-checklists dir) degrades to yielding
-    UNLOCKED rather than raising, so save_registry() can still fail-open
-    gracefully instead of losing the entire checklist message. Only a
-    lock that WAS acquired guarantees its own release via try/finally;
-    an exception raised by the caller's body is never swallowed here.
+    Any failure before the body runs yields unlocked instead of raising.
     """
     if not is_safe_path_component(session_id):
         yield
@@ -219,19 +138,7 @@ def locked(project_root: str, session_id: str):
 
 
 def load_registry(project_root: str, session_id: str) -> tuple[dict, bool]:
-    """Return (data, corrupt).
-
-    data is always a usable dict -- defaulted to empty ({"skills": [],
-    "block_count": 0}) both when the file is simply absent (normal: no
-    process skill has loaded yet this session) and when it exists but
-    cannot be read as the expected shape, INCLUDING when session_id isn't
-    a safe path component (registry_path() raises ValueError, caught
-    below like any other unreadable-registry case). `corrupt` is what
-    tells "absent, normal" apart from "present or malformed, must warn":
-    False for absent/no-session_id (stay silent, nothing to check), True
-    for anything caller must warn about instead of pretending was empty
-    on purpose.
-    """
+    """Return (data, corrupt): data is always usable; corrupt is True when the file exists but is unreadable or malformed."""
     if not session_id:
         return _default_registry(session_id), False
     try:
@@ -257,12 +164,7 @@ def load_registry(project_root: str, session_id: str) -> tuple[dict, bool]:
 
 
 def save_registry(project_root: str, session_id: str, data: dict) -> bool:
-    """Best-effort write. Returns True on success, False on any failure --
-    callers must treat False as fail-open (a write failure can never turn
-    into a block, only into "the counter didn't stick this time"). Callers
-    doing a read-modify-write MUST already be inside locked() -- this
-    function does not lock by itself, since load+mutate+save is the unit
-    that needs to be atomic, not the save alone."""
+    """Best-effort write; False on any failure. Callers must hold `locked()`."""
     if not session_id:
         return False
     try:

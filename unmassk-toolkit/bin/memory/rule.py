@@ -1,56 +1,12 @@
 #!/usr/bin/env python3
-"""bin/memory/rule.py -- da de alta una regla de trabajo (remember), o
-imprime el fichero de reglas entero.
+"""`gitmem rule`: add, retract or replace a working rule, or print the rules file.
 
-Contrato: docs/memoria-v2/PIEZAS.md Sec.10 (fila `rule.py`). Llama a UNA
-funcion de la libreria por modo (`rules.add`, `rules.read_all`) e imprime
-lo que devuelve -- toda la logica vive en `lib/memory/rules.py`, nunca
-aqui [PIEZAS.md Sec.10, regla comun a los once scripts].
+    rule.py "<text>" [--kind <user|claude>] --quote "<literal words>"|none --searched "..."
+    rule.py
+    rule.py --retract "<exact text>" --kind <user|claude>
+    rule.py "<new text>" --replaces "<old text>" --kind <user|claude> [--quote ...] --searched "..."
 
-Grammar de CLI [TEXTOS.md Sec.1.2, literal repetido: `gitmem rule "..."`;
-`lib/memory/rules.py`, docstring y `_reject_invalid_kind`: "con el tipo
-explicito, `gitmem rule "<texto>" --kind <user|claude>`". El modo lectura
-(sin texto) es ASUNCION documentada -- ver el docstring de
-test_rule_script.py, que la fija por simetria con como argparse ya trata
-un posicional opcional en el resto del sistema, antes de que este
-fichero existiera]:
-
-    rule.py "<texto>" [--kind <user|claude>] [--quote "<cita literal>"] \\
-            --searched "<lo buscado>: <lo encontrado>"
-    rule.py                                       # imprime rules.md entero
-    rule.py --retract "<texto exacto>" --kind <user|claude>
-    rule.py "<texto nuevo>" --replaces "<texto viejo>" \\
-            --kind <user|claude> [--quote "<cita>"|none] --searched "..."
-
-`--searched` [D-098/D-124]: alta y `--replaces` lo exigen; leer y
-`--retract`, no.
-
-`--retract`/`--replaces` [contrato fijado por
-test_rule_retract_replace_contract.py, test-first]: `--kind` es
-OBLIGATORIO en los dos -- a diferencia del alta, donde tiene un valor
-por defecto (`_DEFAULT_KIND`). `rules.similar_existing()` ya establece
-que una regla `[user]` y una `[claude]` con el mismo texto no son la
-misma regla; identificar solo por texto para retirar/sustituir seria
-ambiguo en cuanto existieran las dos, asi que este comando nunca
-inventa un valor por defecto para ese caso.
-
-`--quote` [encargo 2026-08-23, corregido el mismo dia]: las palabras
-LITERALES de quien dijo la regla. Obligatorio para CUALQUIER `--kind`
--- ausente o en blanco rebota antes de tocar el fichero, via
-`rules.add()`. El requisito empezo limitado a `[user]`, pero eso mismo
-dejaba un hueco: una correccion real del propietario se guardo como
-`--kind claude` solo para saltarse la cita. La UNICA salida sin cita
-real es el literal `--quote none` -- "esto es una nota que Claude se
-deja a si mismo, el propietario no dijo nada". Motivo original: el
-2026-08-20 se guardo una regla `[user]` ("jamas guias") que el
-propietario nunca dijo -- redactada por Claude, no citada de el.
-
-`--kind` por defecto es "user" cuando se anade una regla sin el flag
-[ASUNCION -- ningun texto del proyecto fija un valor por defecto para el
-literal sin `--kind`, `gitmem rule "..."`, que aparece en el rechazo de
-zona en lista negra (TEXTOS.md Sec.1.2) dirigido a la persona en el
-chat, no a Claude]. Documentado aqui para que se pueda revocar sin
-arqueologia.
+`--kind` defaults to "user" only when adding; retract and replace require it.
 """
 
 import argparse
@@ -64,7 +20,7 @@ _LIB_MEMORY_DIR = os.path.join(_TOOLKIT_ROOT, "lib", "memory")
 if _LIB_MEMORY_DIR not in sys.path:
     sys.path.insert(0, _LIB_MEMORY_DIR)
 
-from utf8 import force_utf8_streams  # noqa: E402  (import tras sys.path)
+from utf8 import force_utf8_streams  # noqa: E402  (import after sys.path)
 
 force_utf8_streams()
 
@@ -72,8 +28,7 @@ import rejection as rejection_  # noqa: E402
 import rules as rules_lib  # noqa: E402
 import validator  # noqa: E402
 from emojis import CHANNEL_EMOJI  # noqa: E402
-# `list`/`ls` leen; las palabras sueltas de otras familias rebotan sin
-# guardar. Una sola copia, la que tambien lee la aduana [D-098].
+# Single words that read the rules, or that are rejected as not a rule.
 from save_command import RULE_NOT_A_RULE_WORDS, RULE_READ_WORDS  # noqa: E402
 
 _DEFAULT_KIND = "user"
@@ -86,8 +41,7 @@ def _parse_args(argv):
     parser.add_argument("--quote", default=None)
     parser.add_argument("--retract", default=None)
     parser.add_argument("--replaces", default=None)
-    # D-098: obligatorio al guardar; lo exige `main()` con la pregunta,
-    # nunca argparse (su `usage:` no es la pregunta).
+    # Required when saving; enforced in main() so the rejection shows the question.
     parser.add_argument("--searched", default=None)
     return parser.parse_args(argv)
 
@@ -98,18 +52,7 @@ def _cmd_read():
 
 
 def _render_similar_rejection(candidates, kind, text, quote, searched):
-    """El rechazo literal de TEXTOS.md Sec.1.11b, con las candidatas reales
-    de `rules.similar_existing()` y la regla que se iba a guardar. No pasa
-    por `rejection.build()`/`render_terminal()`: esa tuberia siempre
-    antepone el emoji `TYPE_EMOJI["B"]` (``⛔``) al titulo, y Sec.1.11b usa
-    ``❌`` -- mismo patron ya usado en este mismo directorio para un
-    rechazo que tampoco encaja en esa forma (`zones.py`, ya alta / ya
-    alias). Cada candidata sale con SU dueno real (`kind` del propio
-    `_RuleMatch`), nunca el de la regla nueva -- lo que
-    `test_the_script_never_swaps_the_owner_of_two_near_duplicate_rules`
-    verifica. El relanzamiento lleva `--kind`, `--quote` y `--searched` ya
-    dados: sin ellos, obedecerlo rebota otra vez o cambia el dueno.
-    """
+    """Render the near-duplicate rejection: each candidate with its own owner, plus a relaunch."""
     emoji = CHANNEL_EMOJI["rule"]
     relaunch = f'gitmem rule "..." --kind {kind}'
     if quote is not None:
@@ -140,14 +83,12 @@ def _render_similar_rejection(candidates, kind, text, quote, searched):
 
 
 def _print_rejection(one_rejection, searched):
-    """El rechazo arrastra el `--searched` ya contestado en sus
-    relanzamientos [D-098, ver `validator.carry_searched`]."""
+    """Print a rejection whose relaunches carry the given `--searched` answer."""
     print(rejection_.render_terminal(validator.carry_searched(one_rejection, searched, "gitmem rule ")))
 
 
 def _searched_rejection(args, argv):
-    """D-098: alta y `--replaces` exigen `--searched`; imprime la pregunta
-    con el relanzamiento exacto. `True` si rebota."""
+    """Print the `--searched` rejection if the answer is missing; return True if rejected."""
     rejection = validator.validate_searched(args.searched, ["gitmem", "rule", *argv])
     if rejection is None:
         return False
@@ -157,14 +98,7 @@ def _searched_rejection(args, argv):
 
 def _cmd_add(text, kind, quote, searched):
     similar = rules_lib.similar_existing(text)
-    # El rechazo solo dispara si la casi-duplicada es del MISMO dueno --
-    # `rules.similar_existing()` (docstring, endurecimiento 2026-08-04):
-    # "una regla [user] y una [claude] con el mismo texto NO son la misma
-    # regla". Una vez dispara, se ensena la lista ENTERA que devolvio la
-    # libreria (cualquier dueno), no solo la que lo disparo -- es la misma
-    # foto completa que ya usa el rechazo por pisar contenido (TEXTOS.md
-    # Sec.1.6): ver las dos juntas es lo que permite juzgar si de verdad
-    # dicen cosas distintas.
+    # Reject only on a same-owner near duplicate, but show every candidate.
     if any(existing_kind == kind for existing_kind, _ in similar):
         print(_render_similar_rejection(similar, kind, text, quote, searched))
         return 1
@@ -175,12 +109,7 @@ def _cmd_add(text, kind, quote, searched):
             for one_rejection in result.rejections:
                 _print_rejection(one_rejection, searched)
             return 1
-        # Texto de respaldo (nitpick de Cerberus/Argus, 2026-08-23): un
-        # `git_error` vacio o `None` (git fallo sin escribir nada en
-        # stderr NI en stdout -- raro, pero `gitcmd.run()` no lo excluye)
-        # no puede dejar el mensaje real reducido a "git fallo al guardar
-        # la regla: " sin nada detras -- eso es indistinguible de un
-        # mensaje truncado por error.
+        # git may fail with no output; never print an empty detail.
         detalle = result.git_error or "git no dio detalle"
         print(f"git fallo al guardar la regla: {detalle}", file=sys.stderr)
         return 1
@@ -274,6 +203,6 @@ def main(argv):
 if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
-    except Exception as exc:  # nunca una traza de pila -- PIEZAS.md Sec.10
+    except Exception as exc:  # never a stack trace
         print(f"rule.py: {exc}", file=sys.stderr)
         sys.exit(1)

@@ -1,34 +1,11 @@
 #!/usr/bin/env python3
-"""bin/memory/boot.py -- el menu del dia: lo primero que se ve al abrir
-una sesion.
-
-Contrato: docs/memoria-v2/PIEZAS.md Sec.10 (fila `boot.py`): llama a
-`boot.build` + `boot.render`, no admite argumentos, imprime el menu del
-dia. Toda la logica (que se enseña, en que orden, que pasa en un proyecto
-recien instalado o con una rama sin ningun commit todavia) vive en
-`lib/memory/boot.py` -- ya en produccion, con las dos formas de reventar
-en un proyecto recien instalado ya arregladas ahi (indices/`ARCHIVED.md`
-ausentes cuentan como cero, una rama sin commits es un estado valido, no
-un fallo) [ver `lib/memory/boot.py`, `lib/memory/indexes.py`,
-`lib/memory/query.py`, docstrings "Revision 2026-08-02"].
-
-`boot.build()` resuelve su `root` con `notes.repo_root()` (`git
-rev-parse --show-toplevel`) [correccion 2026-08-02, `lib/memory/boot.py`,
-docstring del modulo] -- ya no con `Path.cwd()` a secas, asi que este
-guion no necesita ningun apano propio: lanzado desde una subcarpeta
-anidada, `boot_lib.build()` encuentra la raiz real por si solo. El apano
-que vivia aqui antes (`os.chdir(notes.repo_root())` antes de llamar a
-`boot_lib.build()`) se retira -- quedaba fuera de la pieza, y obligaba a
-que cada futuro llamador (el hook del arranque, que aun no existe) se
-acordara de repetirlo.
-"""
+"""Session-start entry point: writes the boot report to a file and prints where it is."""
 
 import os
 import sys
 import time
 
-# Hora de arranque: un informe escrito despues es de otra sesion a la
-# que le fue bien, y el aviso de fallo de esta no lo pisa.
+# Start time: a report written later belongs to a newer session and the failure marker must not overwrite it.
 _STARTED = time.time()
 
 _BIN_MEMORY_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -37,7 +14,7 @@ _LIB_MEMORY_DIR = os.path.join(_TOOLKIT_ROOT, "lib", "memory")
 if _LIB_MEMORY_DIR not in sys.path:
     sys.path.insert(0, _LIB_MEMORY_DIR)
 
-from utf8 import force_utf8_streams  # noqa: E402  (import tras sys.path)
+from utf8 import force_utf8_streams  # noqa: E402  (import after sys.path)
 
 force_utf8_streams()
 
@@ -48,36 +25,16 @@ import notes  # noqa: E402
 
 
 def main(argv):
-    """Escribe el informe en un fichero y deja por pantalla SOLO donde
-    esta.
-
-    **No se inyecta** [decision del propietario, B4]: lo que un hook
-    imprime al arrancar entra en el contexto con un tope de tamaño, y un
-    arranque con veinte muros y diez bloqueantes lo pasa. Recortado por
-    ese tope, lo que desaparece es el final -- justo los avisos de salud,
-    que son los que dicen si la memoria esta rota. Se escribe entero y se
-    lee entero.
-    """
+    """Write the boot report to a file and print only the load order and its path."""
     report = boot_lib.render(boot_lib.build())
 
     destination = boot_common.report_path(notes.repo_root())
     destination.parent.mkdir(parents=True, exist_ok=True)
 
-    # `gitcmd.atomic_write()`, no un temporal a mano: un arranque
-    # interrumpido a mitad no puede dejar medio informe que el siguiente
-    # leeria como si fuera entero, y esa pieza ya resuelve exactamente
-    # eso para los indices [Cerberus, 2026-08-05: no se reimplementa lo
-    # que ya existe en el mismo sys.path].
+    # Atomic: an interrupted boot never leaves a half-written report.
     gitcmd.atomic_write(destination, report)
 
-    # La orden va DELANTE del enlace, y es deliberado [decision del
-    # propietario, 2026-08-05, tras saltarse la carga en una sesion real].
-    # Lo que manda cargar las dos skills vivia en dos sitios y los dos
-    # fallaron a la vez: el bloque del CLAUDE.md se leyo y se ignoro, y el
-    # aviso del hook de cada mensaje solo nombraba `unmassk-core` y solo
-    # salia en el primer mensaje de la sesion -- en un reinicio, con su
-    # fichero-marca ya puesto, no salio ni una vez. Este canal es el unico
-    # que se escribe entero en cada SessionStart, reinicio incluido.
+    # The load order goes before the report path on purpose.
     print("[memory] BEFORE ANSWERING THE USER, in this order:")
     print('  1. Skill tool with skill="unmassk-core"      (TOOL CALL, not bash)')
     print('  2. Skill tool with skill="unmassk-memory"    (TOOL CALL, not bash)')
@@ -91,12 +48,7 @@ def main(argv):
 
 
 def _leave_a_failure_marker(exc: Exception) -> None:
-    """Si el arranque revienta, el informe de AYER se queda en disco y no
-    hay forma de distinguirlo del de hoy salvo mirando su fecha. Y quien
-    lo lanza se traga el codigo de salida a proposito -- la memoria no
-    bloquea la sesion. Asi que el fallo se escribe donde se lee
-    [Argus, 2026-08-05].
-    """
+    """Replace the previous report with a failure notice so it is not read as this session's."""
     try:
         boot_common.write_failure_marker(
             notes.repo_root(),
@@ -108,14 +60,14 @@ def _leave_a_failure_marker(exc: Exception) -> None:
             started=_STARTED,
         )
     except Exception:
-        # Si ni siquiera esto se puede escribir, queda el stderr de abajo.
+        # If even this cannot be written, the stderr line below remains.
         pass
 
 
 if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
-    except Exception as exc:  # nunca una traza de pila -- PIEZAS.md Sec.10
+    except Exception as exc:  # never a stack trace
         _leave_a_failure_marker(exc)
         print(f"boot.py: {exc}", file=sys.stderr)
         sys.exit(1)

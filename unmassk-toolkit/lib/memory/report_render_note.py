@@ -1,67 +1,6 @@
-"""Convertir el informe de una nota por su identificador en texto --
-molde en docs/memoria-v2/TEXTOS.md Sec.2.4 (dictado por el propietario,
-2026-08-03), cierra DEUDA.md #24.
+"""Render the report of a single note looked up by id (used by `gitmem search --id`).
 
-Fichero APARTE de `report_render.py` -- no una funcion mas alli -- por
-el mismo techo de 500 lineas que ya partio `format.py`/`format_lines.py`
-y `validator.py`/`validator_zones.py` [DEUDA.md puntos 12/14]. Reutiliza
-las piezas ya publicas de `report_render.py` (`DIVIDER`/`THIN_DIVIDER`/
-`header_line`/`utc_label`) en vez de duplicarlas -- mismo principio que
-`vocabulary.TYPE_INDEX_FILES` se hizo publica para reuso entre hermanos.
-
-`report.build_note()` ya resuelve QUE se enseña (la nota, su estado, y
-sus hijos directos por puntero) -- este modulo solo lo pinta. No lee de
-git ni de `zones.json`/`ARCHIVED.md` por su cuenta, ni decide nada que
-`NoteReport` no traiga ya construido [mismo "Que NO hace" que
-`report_render.py`, Sec.9.2].
-
-Las cinco reglas del molde [TEXTOS Sec.2.4], una funcion o bloque por
-regla:
-
-1. La cabecera es la NOTA (id + tipo en castellano + estado), no la
-   zona -- `render_note`, primeras tres lineas.
-2. Todos los campos del commit, con su nombre y alineados; uno vacio no
-   se imprime -- `_note_fields`. `Origin`/`Replaces` quedan FUERA a
-   proposito: el propio molde los reserva para el racimo (regla 4),
-   nunca los lista como campo de la nota. EXCEPCION anadida 2026-08-25
-   [D-056, "el enlace de sustitucion se ve por un solo lado"]:
-   `Replaces` SI se imprime, pero no como campo de esta regla --
-   `_replaces_line`, aparte, con el texto `sustituye a {old_id}`,
-   espejo de `nace de {root_id}` que ya usa la regla 4 para el otro
-   sentido del mismo puntero.
-3. Las dos zonas juntas, con la fecha REAL de escritura de la nota (no
-   la hora del informe, que va en la cabecera) -- `render_note`, linea
-   de zonas.
-4. El racimo por punteros Origin/Replaces debajo; sin nada que cuelgue,
-   el bloque entero no se imprime -- `_cluster_lines`.
-5. El pie ofrece la zona, nunca `--todo` -- `render_note`, ultima linea.
-
-DESVIACION declarada, mismo motivo que las cinco ya declaradas en
-`report_render.py`: el texto de `Why`/`Description` no se envuelve en
-varias lineas como en el ejemplo de TEXTOS -- tiene que sobrevivir
-ENTERO y contiguo en el render (round-trip real, sin fabricar el texto
-esperado -- unmassk-standards Sec.34), y envolver lo partiria en trozos
-con su propia sangria.
-
-`awaits:` (solo lo lleva B) e `Issue:` (los siete tipos desde
-D-044/D-045, 2026-08-22 -- antes solo M) NO se alinean en la misma
-columna que Why/Description/Keys -- llevan un unico espacio tras
-los dos puntos (`"awaits: the user"`, `"Issue: #47"`, el mismo formato
-que ya escribe `format.py::_body_field_line` para el campo real del
-commit), a diferencia de Why/Description/Keys, que SI comparten columna
-[TEXTOS Sec.2.4, regla 2, "alineados"]. El contrato en rojo original de
-esta tarea (`test_search_script.py::TestByIdRule2...
-test_an_absent_field_prints_no_label_at_all`) fijaba el texto
-`"espera: the user"`, en castellano -- pasa a `"awaits: the user"`
-[decision del propietario, DEUDA.md B19 punto 4, 2026-08-03:
-"`awaits:` en todas partes", sin excepcion para este informe]; sigue
-con un solo espacio, no una columna calculada.
-
-Quien lo llama. `bin/memory/search.py`.
-
-`lib/memory/` no importa nada del toolkit fuera de la biblioteca estandar
-de Python [PIEZAS.md Sec.13]. Import plano entre hermanos
-[PIEZAS.md Sec.3.3bis].
+Paints what `report.build_note()` already resolved; reads nothing on its own.
 """
 
 from emojis import TYPE_EMOJI
@@ -69,28 +8,18 @@ from model import Note, NoteReport
 from report_render import DIVIDER, THIN_DIVIDER, header_line, utc_label
 from vocabulary import TYPE_SPANISH_NAME
 
-_FIELD_GAP = 2  # espacio minimo entre la etiqueta mas larga y el valor
-_BODY_INDENT = "    "  # 4 espacios -- mismo indentado que TEXTOS Sec.2.4
+_FIELD_GAP = 2  # minimum gap between the longest label and its value
+_BODY_INDENT = "    "  # 4 spaces
 
 
 def _note_fields(note: Note) -> list[str]:
-    """Los campos del commit con su nombre -- regla 2. `Why`/
-    `Description`/`Keys` comparten UNA columna de valor (alineados); un
-    campo ausente (`None`, tupla vacia) no genera ninguna linea: "no se
-    enseñan etiquetas huerfanas" [TEXTOS Sec.2.4]. `awaits:`/`Issue:`
-    van aparte, con el formato literal de un espacio -- `awaits:` solo
-    en B, `Issue:` en los siete tipos desde D-044/D-045 -- ver
-    desviacion en el docstring del modulo.
-    """
+    """Labelled note fields: Why/Description/Keys/Quote aligned, awaits/Issue with one space; empty fields skipped."""
     aligned: list[tuple[str, str]] = []
     if note.why:
         aligned.append(("Why", note.why))
     aligned.append(("Description", note.description))
     if note.keys:
         aligned.append(("Keys", ", ".join(note.keys)))
-    # `quote` -- solo Q/I, la cita literal del dueño cuando `--issue none`
-    # [D-065/D-066, 2026-08-26]. Mismo trato que Why/Keys: texto libre,
-    # alineado con el resto en vez de un espacio unico como awaits/Issue.
     if note.quote:
         aligned.append(("Quote", note.quote))
 
@@ -100,39 +29,22 @@ def _note_fields(note: Note) -> list[str]:
         for label, value in aligned
     ]
 
-    # `awaits:` en ingles, sin excepcion [DEUDA.md B19 punto 4] -- antes
-    # de esta decision el molde de TEXTOS Sec.2.4 fijaba `espera:` aqui,
-    # en castellano, distinto del arranque.
     if note.type == "B" and note.awaits:
         lines.append(f"{_BODY_INDENT}awaits: {note.awaits}")
-    # `issue` ya no es solo de M -- D-044/D-045 (2026-08-22) lo abre a
-    # los siete tipos; agnostico de tipo aqui, igual que
-    # `validator.py`/`format.py::_body_field_line` ya lo eran.
     if note.issue is not None:
         lines.append(f"{_BODY_INDENT}Issue: #{note.issue}")
     return lines
 
 
 def _replaces_line(note: Note) -> list[str]:
-    """La EXCEPCION declarada a la regla 2 -- ver docstring del modulo
-    [D-056, "el enlace de sustitucion se ve por un solo lado"]: el
-    propio puntero ``Replaces`` se imprime aqui, desde la vista propia
-    de la nota NUEVA, con el texto literal ``sustituye a {old_id}`` --
-    espejo exacto de ``nace de {root_id}`` que ``_cluster_lines`` (regla
-    4) ya usa para el otro sentido del mismo tipo de puntero. Una nota
-    sin ``replaces``, o con ``none`` (conviven, no apunta a nada), no
-    imprime nada -- ninguna linea, nunca una vacia.
-    """
+    """Return the `sustituye a {old_id}` line, or nothing when there is no replaced note."""
     if not note.replaces or note.replaces == "none":
         return []
     return [f"{_BODY_INDENT}sustituye a {note.replaces}"]
 
 
 def _child_status(child: Note, archived_ids: frozenset) -> str:
-    """descartada/archivada/vigente -- mismo criterio que
-    ``report_render._cluster_block`` ya aplica para el racimo del
-    informe de zona (X es siempre descarte permanente, el resto se lee
-    contra ``archived_ids``)."""
+    """Return the child's status: descartada (type X), archivada or vigente."""
     if child.type == "X":
         return "descartada"
     if child.id in archived_ids:
@@ -141,16 +53,7 @@ def _child_status(child: Note, archived_ids: frozenset) -> str:
 
 
 def _cluster_lines(report: NoteReport) -> list[str]:
-    """El bloque "LO QUE CUELGA DE ELLA" -- regla 4. Ni el titulo se
-    imprime si ``report.cluster`` es ``None``: "un titular vacio es
-    ruido" [TEXTOS Sec.2.4].
-
-    El pie de cada hijo dice literalmente "nace de {id de la nota
-    pedida}" -- el texto exacto del molde -- para las TRES formas de
-    puntero que ``report.build_note`` ya resolvio como hijo directo
-    (Origin hacia la nota pedida, o Replaces hacia ella); no distingue
-    cual de las dos fue, porque el molde tampoco lo hace.
-    """
+    """Render the block of notes pointing to this one; nothing when there is no cluster."""
     if report.cluster is None:
         return []
     root_id = report.note.id
@@ -165,8 +68,7 @@ def _cluster_lines(report: NoteReport) -> list[str]:
 
 
 def render_note(report: NoteReport) -> str:
-    """El informe de una nota por su identificador -- las cinco reglas
-    de TEXTOS.md Sec.2.4, en orden."""
+    """Render the full report of one note."""
     note = report.note
     status = "archivada" if report.archived else "vigente"
 

@@ -1,114 +1,7 @@
 #!/usr/bin/env python3
-"""dead-code.py -- detector de codigo muerto de dos ramas, suelto de
-cualquier proyecto.
+"""Dead-code detector: for each public top-level symbol, count production users and test functions (AST only).
 
-USO (manual, nunca enganchado a una suite ni a un hook -- se ejecuta
-cuando tu quieras):
-
-    python3 dead-code.py <ruta-de-codigo> [<ruta-de-codigo> ...] <carpeta-de-tests>
-
-Una o mas rutas de codigo -- cada una una carpeta (recorrida entera) o
-un fichero suelto (un hook, un script) -- y SIEMPRE, como ultimo
-argumento, la carpeta de tests. Ejemplo real de este mismo proyecto,
-que necesita cinco rutas de codigo porque su codigo vive repartido en
-cinco sitios distintos (libreria, comandos, un script suelto, dos
-hooks):
-
-    python3 dead-code.py lib/memory bin/memory bin/gitmem \\
-        hooks/customs.py hooks/boot_launcher.py tests/memory
-
-DALE TODAS LAS RUTAS DONDE VIVE EL CODIGO. Dejarte una fuera no es un
-resultado "un poco corto": es que esta herramienta va a ACUSAR DE
-MUERTO ALGO QUE ESTA VIVO, en la direccion peligrosa -- porque solo ve
-los ficheros que le diste, y un simbolo llamado unicamente desde una
-ruta que no le pasaste le parece, desde donde mira, sin llamador. Caso
-real, medido en este mismo proyecto: si solo se le pasa ``lib/memory``,
-``repo_guard.current_branch`` sale con produccion 0 -- pero SI tiene un
-llamador real, en ``bin/memory/wip.py``, y es la comprobacion que
-impide que un checkpoint aterrice en la rama principal. Alguien que se
-fiara de esa fila y la borrara se quedaria sin esa proteccion sin
-notarlo hasta que algo se rompiera. Sale de la tabla en cuanto se le
-pasa tambien la carpeta que lo llama.
-
-Por cada simbolo publico de nivel superior (funcion o clase que no
-empieza por "_") de cada fichero ``.py`` de las rutas de codigo, cuenta
-dos numeros, SIEMPRE por separado -- un test nunca cuenta como
-produccion, esa es la diferencia entera con un "grep de quien lo usa":
-
-  produccion  cuantos ficheros que NO son tests usan el simbolo desde
-              fuera de su propio fichero (import real, de verdad usado
-              en el cuerpo -- no basta con importarlo).
-  tests       cuantas FUNCIONES de test (nunca ficheros: un fichero
-              puede tener veinte tests sobre la misma pieza) tocan el
-              simbolo de verdad.
-
-Como se lee la tabla -- va aqui porque es la unica pagina que alguien
-lee antes de borrar algo:
-
-  produccion == 0 Y tests == 0   -> codigo muerto. Nadie lo usa, nadie
-                                     lo prueba. Candidato a borrar.
-  produccion == 0 Y tests >= 1   -> NO es codigo muerto: es una
-                                     herramienta de contraste, algo que
-                                     solo usan los tests para comprobar
-                                     OTRA pieza (el resultado de A se
-                                     compara contra el de B calculado
-                                     por otro camino). No se borra.
-  produccion >= 1                -> tiene consumidor real. No sale
-                                     como fila roja.
-
-Extraido de un detector que vivia pegado a un proyecto concreto
-(comparaba una lista fija de zonas del propio repo, escrita a mano en
-su propio codigo). Aqui las zonas son exactamente las rutas que le
-pases en la linea de comandos -- ninguna ruta viene supuesta ni
-adivinada, para que funcione igual en cualquier proyecto y con
-cualquier reparto de carpetas.
-
-Metodo: AST, nunca grep/texto crudo -- un docstring que CITA una
-llamada para explicar algo no es una llamada real, y un grep a lo
-bruto no distingue las dos cosas.
-
-Tres trampas resueltas aqui (ya pagadas una vez, en el detector del que
-sale este fichero, contra un proyecto real):
-
-  1. Modulo recibido con APODO. Un fichero de test puede recibir un
-     modulo bajo un nombre distinto al suyo (choque con una palabra
-     reservada de Python, o simplemente estilo). Si se buscara el
-     nombre del fichero a pelo, sus tests serian invisibles. Se
-     resuelve leyendo, en el propio AST del fichero de test, dos
-     patrones literales: (a) una fixture de pytest cuyo cuerpo es
-     ``return <llamada>(...)`` con un argumento de texto que coincide
-     con el nombre de un modulo real, y (b) una variable de NIVEL DE
-     MODULO con esa misma forma (``nombre = <llamada>("modulo")``,
-     sin fixture, usada como cierre). NO se ata al nombre de ninguna
-     funcion cargadora en concreto (`import_module`, un cargador
-     casero...): cualquier llamada cuyo argumento de texto sea el
-     nombre de un modulo real cuenta -- eso es lo que hace que esto
-     no dependa de ningun proyecto en particular.
-  2. Tests dentro de una CLASE (``class TestAlgo:`` con metodos
-     ``def test_*(self, ...)``). Si solo se mirara el nivel superior
-     del fichero, una parte de los tests -- a veces la mayoria --
-     seria invisible entera.
-  3. Modulo en una variable de fichero, SIN apodo ni fixture --
-     mismo patron que (1)(b) pero sin decorador.
-
-Y la cuarta, la que hace que esto valga la pena: un test JAMAS cuenta
-como produccion, aunque llame al simbolo cien veces.
-
-Limites declarados, no callados:
-
-  - Import dinamico (``importlib.import_module(x)`` con ``x`` NO
-    literal, ``__import__(x)``) no aparece en el arbol de sintaxis
-    como un Import/ImportFrom -- este detector no lo ve.
-  - Convencion de nombre PLANO: el simbolo "propietario" de un modulo
-    se identifica por el nombre de fichero (sin ``.py``), no por su
-    ruta completa. Si dos ficheros -- en la misma ruta de codigo, en
-    subcarpetas distintas, o incluso en dos rutas de codigo distintas
-    de las que le pasaste -- comparten nombre, este detector se niega
-    a adivinar y sale con un error explicando cual par choca -- no
-    mezcla sus simbolos en silencio.
-  - Un fichero que no es valido Python (no analiza) se salta con un
-    aviso por stderr; no aborta el resto del analisis.
-  - No escribe nada. Solo imprime.
+Usage: python3 dead-code.py <code-path> [<code-path> ...] <tests-dir> [--consumidores <path> ...]
 """
 
 import argparse
@@ -120,11 +13,7 @@ from pathlib import Path
 NOISE_DIRS = {"__pycache__"}
 
 
-# ---------------------------------------------------------------------------
-# Lectura de ficheros -- nunca ejecucion. Un fichero que lee stdin o
-# lanza un subproceso al importarse (visto en produccion real) colgaria
-# el analisis si se intentara `import`; por eso todo aqui es AST puro.
-# ---------------------------------------------------------------------------
+# File reading: AST only, never import.
 
 
 def _parse_file(path):
@@ -149,15 +38,7 @@ def _iter_py_files(root, *, name_filter):
 
 
 def _iter_code_files_from_one(code_path):
-    """Los ficheros de UNA ruta de codigo, que puede ser una carpeta
-    (recorrida entera, solo ``.py``, salvo lo que parece test propio --
-    ``test_*.py`` / ``*_test.py``) o un fichero suelto -- un hook, o un
-    script sin extension como ``bin/gitmem`` (tiene shebang de Python
-    pero no termina en ``.py``). Un fichero dado EXPLICITAMENTE cuenta
-    siempre, sin filtrar por nombre ni por extension -- quien lo puso
-    en la lista lo puso a proposito, y exigirle ``.py`` dejaria fuera
-    justo el caso real que esto existe para cubrir.
-    """
+    """Files of one code path: a given file as is, or a folder's non-test `.py` files."""
     if os.path.isfile(code_path):
         yield code_path
         return
@@ -167,10 +48,7 @@ def _iter_code_files_from_one(code_path):
 
 
 def _iter_code_files(code_paths):
-    """Todo ``.py`` de produccion de TODAS las rutas de codigo dadas --
-    una o varias, carpetas o ficheros sueltos, sin duplicar si dos
-    rutas se solapan.
-    """
+    """Production files of all code paths, without duplicates."""
     seen = set()
     for code_path in code_paths:
         for path in _iter_code_files_from_one(code_path):
@@ -184,22 +62,13 @@ def _iter_test_files(tests_dir):
 
 
 def _stem_of(path):
-    """Nombre "propietario" de un fichero: su nombre base sin ``.py`` --
-    o el nombre base tal cual si no tiene esa extension (el caso de un
-    fichero suelto sin extension como ``bin/gitmem``, que SI cuenta
-    como modulo de produccion cuando se le da explicitamente).
-    """
+    """File base name without `.py`."""
     base = os.path.basename(path)
     return base[:-3] if base.endswith(".py") else base
 
 
 def _stems_from_files(files):
-    """`{nombre_propietario: ruta}` -- la convencion plana, DENTRO de una
-    sola ruta de codigo. Si dos ficheros de la MISMA ruta comparten
-    nombre (dos subcarpetas suyas, p.ej.), se devuelven aparte como
-    colision -- ahi no hay ninguna señal para desempatar, y este
-    detector no decide por si solo cual de los dos es "el" modulo.
-    """
+    """`({stem: path}, {stem: [colliding paths]})` for files of a single code path."""
     stem_to_path = {}
     collisions = {}
     for path in sorted(files):
@@ -212,23 +81,9 @@ def _stems_from_files(files):
 
 
 def _resolve_stems_across_paths(code_paths):
-    """Igual que `_stems_from_files`, pero a traves de VARIAS rutas de
-    codigo dadas en la linea de comandos. Un choque DENTRO de una
-    misma ruta sigue siendo fatal (sin señal para desempatar). Un
-    choque ENTRE dos rutas distintas -- el patron real de este mismo
-    proyecto, un script de `bin/memory/boot.py` que envuelve a
-    `lib/memory/boot.py` y comparte su nombre -- SI tiene señal: la
-    ruta listada ANTES en la linea de comandos gana como definidor
-    canonico. La(s) ruta(s) perdedora(s) se siguen analizando como
-    consumidoras (lo que importan cuenta), pero sus propios simbolos
-    bajo ese nombre no se rastrean -- avisado por stderr, nunca en
-    silencio.
+    """Resolve stems across code paths: the path listed first wins; a clash within one path is fatal.
 
-    Devuelve `(stem_to_path, shadowed_files, fatal_collisions)`.
-    `shadowed_files` es la lista de rutas de fichero que perdieron un
-    choque entre rutas -- el llamador las sigue analizando como
-    ficheros de produccion normales, solo que sin ser "dueñas" de
-    ningun stem.
+    Returns `(stem_to_path, shadowed_files, fatal_collisions)`; shadowed files are still scanned as consumers.
     """
     stem_to_path = {}
     shadowed_files = []
@@ -256,25 +111,12 @@ def _resolve_stems_across_paths(code_paths):
 
 
 def _resolution_own_stem(path, stem_to_path):
-    """El nombre que `path` "posee" a efectos de no contarse a si mismo
-    como consumidor externo de sus propios simbolos: su stem real SI es
-    el definidor canonico de ese stem; si no (perdio un choque entre
-    rutas, ver `_resolve_stems_across_paths`), un valor que NUNCA
-    coincide con un stem real -- la propia ruta completa, que siempre
-    contiene un separador de carpetas y por tanto no puede ser igual a
-    ningun nombre de modulo plano -- para que sus importaciones de
-    verdad SI cuenten como uso externo.
-    """
+    """Stem `path` owns, or its full path (matching no stem) when it lost a cross-path clash."""
     stem = _stem_of(path)
     return stem if stem_to_path.get(stem) == path else path
 
 
-# ---------------------------------------------------------------------------
-# Analisis por fichero -- simbolos publicos declarados, imports que
-# apuntan a un modulo hermano (por nombre) y lo que el propio codigo usa
-# de verdad (Name/Attribute en contexto Load -- que algo se importe no
-# basta, tiene que aparecer usado).
-# ---------------------------------------------------------------------------
+# Per-file analysis: public symbols, sibling imports and names actually used.
 
 
 def _public_top_level_symbols(tree):
@@ -320,11 +162,7 @@ def _analyze_file(tree, stems):
 
 
 def _resolve_owner(stem, symbol, definer_info, depth=0):
-    """Sigue una cadena de reexportacion (``from hermano import X``) hasta
-    el modulo que DEFINE `symbol` de verdad, para que un simbolo
-    reexportado no salga como huerfano en el modulo que solo lo
-    reenvia. Tope de profundidad como salvaguarda ante un ciclo.
-    """
+    """Follow `from sibling import X` re-exports to the defining module (depth-capped)."""
     if depth > 8 or stem not in definer_info:
         return stem, symbol
     data = definer_info[stem]
@@ -336,12 +174,7 @@ def _resolve_owner(stem, symbol, definer_info, depth=0):
     return stem, symbol
 
 
-# ---------------------------------------------------------------------------
-# Trampa 1 -- modulo recibido con apodo o en variable de modulo, sin
-# atarse al nombre de ninguna funcion cargadora en concreto: cualquier
-# llamada con un argumento de texto que coincide con el nombre de un
-# modulo real cuenta.
-# ---------------------------------------------------------------------------
+# Modules received under another name: any call with a string argument naming a real module.
 
 
 def _is_pytest_fixture_decorator(node):
@@ -354,12 +187,7 @@ def _is_pytest_fixture_decorator(node):
 
 
 def _call_stem_arg(call, stems):
-    """Si `call` tiene al menos un argumento (posicional o de palabra
-    clave) que es una constante de texto igual al nombre de un modulo
-    real, devuelve ese nombre. No importa como se llame la funcion --
-    es justo lo que permite no depender del nombre de ningun cargador
-    de un proyecto concreto.
-    """
+    """First string-constant argument of `call` that names a known module, or `None`."""
     literals = [a for a in call.args if isinstance(a, ast.Constant) and isinstance(a.value, str)]
     literals += [
         kw.value
@@ -373,10 +201,7 @@ def _call_stem_arg(call, stems):
 
 
 def _fixture_stem_aliases(tree, stems):
-    """`{nombre_de_fixture: modulo}` para cada fixture de pytest de NIVEL
-    SUPERIOR cuyo cuerpo contiene ``return <llamada>(...)`` con un
-    argumento de texto que nombra un modulo real.
-    """
+    """`{fixture_name: module}` for top-level pytest fixtures returning a call that names a module."""
     aliases = {}
     for node in tree.body:
         if not isinstance(node, ast.FunctionDef):
@@ -393,11 +218,7 @@ def _fixture_stem_aliases(tree, stems):
 
 
 def _module_level_stem_aliases(tree, stems):
-    """`{nombre_de_variable: modulo}` para cada asignacion de NIVEL DE
-    MODULO con forma ``nombre = <llamada>(...)`` cuyo argumento de
-    texto nombra un modulo real -- el mismo patron que la fixture, sin
-    decorador, usado como cierre por los tests del fichero.
-    """
+    """`{variable: module}` for module-level `name = <call>("module")` assignments."""
     aliases = {}
     for node in tree.body:
         if not isinstance(node, ast.Assign):
@@ -412,11 +233,7 @@ def _module_level_stem_aliases(tree, stems):
     return aliases
 
 
-# ---------------------------------------------------------------------------
-# Trampa 2 -- tests dentro de una clase. `_iter_test_functions` entra un
-# nivel dentro de cada `ClassDef` de nivel superior y produce
-# ("Clase::metodo", nodo) -- mismo formato de node-id que pytest.
-# ---------------------------------------------------------------------------
+# Test functions, including methods of top-level classes ("Class::method").
 
 
 def _iter_test_functions(tree):
@@ -431,18 +248,11 @@ def _iter_test_functions(tree):
                     yield f"{node.name}::{sub.name}", sub
 
 
-# ---------------------------------------------------------------------------
-# El arbol de dos ramas.
-# ---------------------------------------------------------------------------
+# Production and test usage scans.
 
 
 def _scan_production_usage(file_analysis, definer_info, report, stem_to_path):
-    """Rama de produccion -- cualquier fichero de las rutas de codigo que
-    no sea el propio dueno del simbolo, usandolo de verdad (por
-    `from hermano import simbolo` con el nombre local realmente
-    referenciado, o por `import hermano` con `hermano.simbolo` usado
-    como atributo). Muta `report` in-place.
-    """
+    """Add to `report` every non-owner production file that actually uses each symbol."""
     for path, analysis in file_analysis.items():
         own_stem = _resolution_own_stem(path, stem_to_path)
         for local, (src_stem, src_symbol) in analysis["from_imports"].items():
@@ -465,12 +275,7 @@ def _scan_production_usage(file_analysis, definer_info, report, stem_to_path):
 
 
 def _touched_symbols_in_test(node, name_to_stem, from_imports, definer_info):
-    """Simbolos `(stem, simbolo)` que el CUERPO de un test concreto toca
-    de verdad -- por atributo sobre un nombre aliasado (`param.simbolo`)
-    o por uso directo de un nombre importado con `from hermano import
-    simbolo`. Una funcion aparte solo para mantener el bucle que la
-    llama por debajo del limite de tamano.
-    """
+    """`(stem, symbol)` pairs the body of one test actually uses."""
     touched = set()
     for sub in ast.walk(node):
         if isinstance(sub, ast.Attribute) and isinstance(sub.value, ast.Name) and sub.value.id in name_to_stem:
@@ -482,18 +287,12 @@ def _touched_symbols_in_test(node, name_to_stem, from_imports, definer_info):
 
 
 def _scan_test_file_usage(path, tests_dir, stems, definer_info, report):
-    """Rama de tests para UN fichero -- por FUNCION/METODO test_*, nunca
-    por fichero. Resuelve las tres trampas (apodo por fixture, variable
-    de modulo, tests dentro de una clase) antes de mirar cada test.
-    Muta `report` in-place.
-    """
+    """Add to `report` each test function of one file that touches each symbol."""
     tree = _parse_file(path)
     if tree is None:
         return
     test_analysis = _analyze_file(tree, stems)
-    # Visibles en CUALQUIER test del fichero por cierre: imports
-    # normales (`import modulo`) y variables de nivel de modulo con el
-    # patron de la trampa 1.
+    # Module imports and module-level aliases are visible to every test in the file.
     always_visible = dict(test_analysis["module_aliases"])
     always_visible.update(_module_level_stem_aliases(tree, stems))
     from_imports = test_analysis["from_imports"]
@@ -513,11 +312,7 @@ def _scan_test_file_usage(path, tests_dir, stems, definer_info, report):
 
 
 def _build_file_analysis(stem_to_path, shadowed_files, consumer_paths, stems):
-    """El AST-analisis de cada fichero de produccion relevante -- los
-    definidores canonicos, los que perdieron un choque entre rutas, y
-    los que solo consumen sin auditarse. Una funcion aparte solo para
-    mantener `build_report` por debajo del limite de tamano.
-    """
+    """AST analysis of canonical definers, shadowed files and consumer-only files."""
     consumer_files = list(_iter_code_files(consumer_paths)) if consumer_paths else []
     file_analysis = {}
     for path in list(stem_to_path.values()) + shadowed_files + consumer_files:
@@ -531,18 +326,9 @@ def _build_file_analysis(stem_to_path, shadowed_files, consumer_paths, stems):
 
 
 def build_report(code_paths, tests_dir, consumer_paths=()):
-    """`{"modulo.simbolo": {"production": [...], "tests": [...]}}` para
-    cada simbolo publico de las <rutas-de-codigo> AUDITADAS
-    (`code_paths`). `consumer_paths` (opcional) solo cuenta como
-    consumidora -- se escanea para ver que importa, pero sus propios
-    simbolos no se rastrean (razon completa: `_EPILOG`, seccion
-    `--consumidores`; existe para no marcar como "muerto" un script
-    que se ejecuta como proceso y al que nadie importa jamas).
+    """Return `(report, fatal_collisions)`: `{"module.symbol": {"production": [...], "tests": [...]}}`.
 
-    Devuelve `(report, fatal_collisions)` -- `fatal_collisions` no
-    vacio significa dos ficheros con el mismo nombre DENTRO de una
-    misma ruta (entre rutas distintas se resuelve por orden, avisando,
-    ver `_resolve_stems_across_paths`).
+    `consumer_paths` are scanned for usage only; their own symbols are not reported.
     """
     stem_to_path, shadowed_files, fatal_collisions = _resolve_stems_across_paths(code_paths)
     if fatal_collisions:

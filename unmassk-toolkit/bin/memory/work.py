@@ -1,34 +1,7 @@
 #!/usr/bin/env python3
-"""bin/memory/work.py -- el commit de trabajo (codigo): acepta rutas
-concretas y no arrastra el resto del arbol [notes_commit.py::write_work,
-docstring].
+"""`gitmem work`: commit only the given paths; refuses on a protected main branch.
 
-Contrato: docs/memoria-v2/PIEZAS.md Sec.10 (fila `work.py`). Grammar de
-CLI [misma fila -- "mensaje, --path (repetible), --issue"]:
-
-    work.py "<mensaje>" --path <ruta1> [--path <ruta2> ...] [--issue N]
-
-Sec.10.1, punto 3 (proteccion de la rama principal) -- IMPLEMENTADO
-2026-08-02. `config.py` deja leible `repo_type` (fail-closed: protegido
-si no hay `config.json`) "antes de commitear, para saber si `main` esta
-protegido" [config.py::load, docstring de quien lo llama]. Ese ajuste
-solo tiene sentido si alguien lo obedece: si `repo_type` es el protegido
-(`"gitflow"`, tambien el default fail-closed) Y la rama actual es la
-principal, este script rechaza -- no commitea, no pregunta -- antes de
-tocar el arbol de trabajo.
-
-**La mecanica (nombre de rama principal, lectura de la rama actual,
-texto del rechazo) vive en `lib/memory/repo_guard.py` desde
-2026-08-03** -- trasladada de aqui sin cambiar ni una linea de
-comportamiento, para que `bin/memory/wip.py` pudiera pedir la MISMA
-proteccion [decision del propietario, "el checkpoint protege la rama
-principal"] sin copiarla. Ver el docstring de ese modulo para la
-asuncion de nombres de rama y el porque del traslado.
-
-El texto exacto del rechazo no esta fijado en ningun documento (a
-diferencia de los de `note.py`, que TEXTOS.md repite literalmente) --
-la anatomia es la que Sec.7.4 exige para todo rechazo de este sistema:
-que ha pasado y que hacer.
+    work.py "<message>" --path <path1> [--path <path2> ...] [--issue N]
 """
 
 import argparse
@@ -42,7 +15,7 @@ _LIB_MEMORY_DIR = os.path.join(_TOOLKIT_ROOT, "lib", "memory")
 if _LIB_MEMORY_DIR not in sys.path:
     sys.path.insert(0, _LIB_MEMORY_DIR)
 
-from utf8 import force_utf8_streams  # noqa: E402  (import tras sys.path)
+from utf8 import force_utf8_streams  # noqa: E402  (import after sys.path)
 
 force_utf8_streams()
 
@@ -63,14 +36,7 @@ def _parse_args(argv):
 
 
 def _issue_rejection(message, paths, issue):
-    """Rechazo real para `--issue N` cuando `gh` CONFIRMA que la issue no
-    existe -- el UNICO caso que bloquea (encargo del propietario, regla
-    2). Reusa `rejection.build`/`render_terminal`, la misma forma que
-    `note.py` ya usa para su propio rechazo de issue -- ningun texto
-    inventado a mano [Sec.7.4]. El comando de relanzamiento es el de
-    `gitmem work`, no el de `gitmem note` (`validator_issue.validate_issue`
-    no aplica aqui: exige una `Note` terminada que este script no
-    construye)."""
+    """Build the rejection for `--issue N` when gh confirms the issue does not exist."""
     what = f"COMMIT DE TRABAJO RECHAZADO — la issue #{issue} no existe en este repo"
     options = (
         "Esta es la unica vez que se comprueba. Un numero mal tecleado aqui",
@@ -88,26 +54,8 @@ def main(argv):
     args = _parse_args(argv)
     paths = [Path(p) for p in args.paths]
 
-    # Leido como la PRIMERISIMA accion, antes de cualquier subproceso de
-    # git (repo_root(), current_branch()) o E/S propia (config.load()) --
-    # cada uno de esos ensancha la ventana entre "el contenido real que
-    # este proceso vio" y "lo que write_work() acaba comiteando" si el
-    # contenido se leyera despues [DEUDA.md punto 27, docstring de
-    # write_work() punto 7: es el cierre real, aunque no absoluto, para
-    # el unico llamador que no genera sus propios bytes en memoria].
-    # `None` si la ruta no se puede leer ahora mismo (no existe, permiso)
-    # -- write_work() cae entonces a su propia lectura de disco para esa
-    # ruta, mismo comportamiento que antes de este arreglo, no una
-    # regresion.
-    #
-    # Estado a 2026-08-04 [DEUDA.md B22]: el propietario descarto el
-    # caso que motivaba este cierre -- dos escrituras a la vez sobre el
-    # mismo fichero -- con un "No va a pasar nunca": se trabaja en una
-    # sola ventana. El punto 27 queda CERRADO por decision, no por mas
-    # reparacion: esto ya NO es un pendiente. La decision dice que no se
-    # construye MAS por ese eje (nada de serializar, nada de negarse) --
-    # no que se retire lo que ya funciona, asi que esta lectura
-    # anticipada se queda tal cual esta.
+    # Read the content first, before any git call, so the commit holds what this
+    # process saw. None when unreadable: write_work() then reads the file itself.
     known_content = []
     for path in paths:
         try:
@@ -125,15 +73,7 @@ def main(argv):
         print(repo_guard.protected_branch_rejection(branch, config_path))
         return 1
 
-    # `--issue N` [encargo del propietario, dos reglas ya decididas]:
-    # 1) `gh` CONFIRMANDO que la issue no existe es el UNICO caso que
-    #    bloquea -- se rechaza, cero commit nuevo.
-    # 2) Cualquier fallo de INFRAESTRUCTURA de `gh` (no instalado, sin
-    #    red, timeout, una respuesta que no sea el "no existe" real --
-    #    `validator_issue.issue_exists` ya distingue las dos, no se
-    #    reimplementa aqui) NUNCA bloquea el commit de trabajo -- perder
-    #    un checkpoint por estar sin red es peor que el problema. Solo se
-    #    avisa, de forma visible, por stderr.
+    # Only a confirmed missing issue blocks; a gh failure only warns.
     if args.issue is not None:
         try:
             exists = validator_issue.issue_exists(args.issue)
@@ -148,14 +88,7 @@ def main(argv):
                 print(rejection_.render_terminal(_issue_rejection(args.message, paths, args.issue)))
                 return 1
 
-    # D-070 (`gitmem search --id D-070`): el marcador va en el mensaje
-    # que llega a `write_work()`, NUNCA dentro de esa funcion compartida
-    # -- si aterrizara ahi, `bin/release.py` se lo llevaria de regalo
-    # (ver `ci.py`, docstring). En su propia linea, separada por una
-    # linea en blanco de todo lo demas, para que un `--issue N` que
-    # `write_work()` anada despues como trailer `Issue: #N` quede en su
-    # propia linea tambien -- `health_plans._ISSUE_TRAILER_RE` la ancla
-    # por linea entera.
+    # The skip-ci marker goes on its own line, so an `Issue: #N` trailer stays on its own line too.
     message_with_marker = f"{args.message}\n\n{ci.SKIP_CI_MARKER}"
     result = notes.write_work(message_with_marker, paths, args.issue, known_content=known_content)
     if not result.ok:
@@ -169,6 +102,6 @@ def main(argv):
 if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
-    except Exception as exc:  # nunca una traza de pila -- PIEZAS.md Sec.10
+    except Exception as exc:  # never a stack trace
         print(f"work.py: {exc}", file=sys.stderr)
         sys.exit(1)

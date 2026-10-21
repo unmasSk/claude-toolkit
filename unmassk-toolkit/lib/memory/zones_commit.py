@@ -1,22 +1,4 @@
-"""Mecanica de persistencia de `zones.py` -- la normalizacion de nombre
-compartida por todo el modulo, el candado exclusivo entre procesos y la
-escritura atomica de `zones.json`. Partido de `zones.py` por tamano
-(354 lineas, techo 300), mismo patron que ya aplica `rules.py` ->
-`rules_commit.py`/`rules_similarity.py`/`rules_validate.py`.
-
-`normalize()`, `write_atomic()` y `exclusive_lock()` pierden su guion
-bajo al cruzar de fichero -- mismo precedente que ya fijo
-`notes_commit.py` para `lock_resource`/`repo_root`/`stage_and_commit`:
-dejan de ser detalle interno de un solo modulo para ser mecanica que
-`zones.py`, `zones_load.py` y `zones_query.py` importan desde fuera.
-`_serialize()` se queda privada -- solo la usa `write_atomic()` aqui
-mismo.
-
-No importa nada del toolkit fuera de la biblioteca estandar de Python
-[PIEZAS.md Sec.13]. Imports planos entre hermanos de `lib/memory/`
-[PIEZAS.md Sec.3.3bis]. No importa nada de `zones.py`, `zones_load.py`
-ni `zones_query.py` -- direccion unica, para que no haya ciclo.
-"""
+"""Zone persistence: name normalization, the cross-process lock and the atomic write of zones.json."""
 
 import json
 import os
@@ -30,12 +12,7 @@ from model import Zone
 
 
 def normalize(name: str) -> str:
-    """El nombre de una zona -- clave de comparacion y persistencia --
-    siempre en minuscula y sin acentos. Se aplica SOLO al nombre
-    canonico y a los alias; la descripcion no pasa por aqui.
-    `load()`/`resolve()`/`candidates()`/`add()` la llaman a traves de
-    esta funcion, nunca repiten la cuenta cada uno.
-    """
+    """Lowercase, accent-free zone name or alias; descriptions are not normalized."""
     return textnorm.normalize_text(name)
 
 
@@ -47,12 +24,7 @@ def _serialize(zones: dict[str, Zone]) -> dict:
 
 
 def write_atomic(path: Path, zones: dict[str, Zone]) -> None:
-    """Escribe zones.json entero sin dejarlo nunca truncado a medias.
-
-    Fichero temporal en el MISMO directorio que `path` + `os.replace()`
-    al terminar -- atomico en POSIX y en Windows desde Python 3.3. Un
-    fallo a mitad deja `path` con su contenido ANTERIOR intacto.
-    """
+    """Write zones.json atomically; on failure `path` keeps its previous content."""
     dest_dir = os.path.dirname(os.path.abspath(path)) or "."
     fd, tmp_path = tempfile.mkstemp(dir=dest_dir, prefix=f".{path.name}.", suffix=".tmp")
     try:
@@ -72,19 +44,9 @@ def write_atomic(path: Path, zones: dict[str, Zone]) -> None:
 
 @contextmanager
 def exclusive_lock(lock_path: Path):
-    """Bloqueo exclusivo entre procesos sobre `lock_path`, bloqueante hasta
-    conseguirlo. Serializa cualquier lectura-modificacion-escritura sobre
-    el `zones.json` correspondiente.
+    """Blocking exclusive cross-process lock on `lock_path`.
 
-    POSIX: `fcntl.flock(fd, fcntl.LOCK_EX)` -- bloqueo nativo, indefinido.
-
-    Windows: `msvcrt.locking()` no tiene bloqueo indefinido propio -- cada
-    llamada reintenta internamente unos 10 segundos y luego lanza OSError
-    si la region sigue ocupada. El bucle de abajo reintenta SOLO mientras
-    el error sea justo ese; cualquier otro error se relanza tal cual.
-
-    fcntl/msvcrt se importan de forma perezosa, dentro de la rama de
-    `sys.platform` que corresponde.
+    On Windows `msvcrt.locking` gives up after ~10 s, so the contention error is retried; any other error is raised.
     """
     fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
     try:
@@ -100,11 +62,9 @@ def exclusive_lock(lock_path: Path):
                     break
                 except OSError as e:
                     if contended_errno is not None and e.errno == contended_errno:
-                        # msvcrt.locking() ya agoto su propio intento de
-                        # ~10s y la region sigue ocupada -- sigue siendo
-                        # contencion genuina, no un fallo permanente.
+                        # Still contended after msvcrt's own ~10 s retry.
                         continue
-                    raise  # fallo real -- reintentar no lo va a arreglar
+                    raise  # real failure: retrying will not fix it
             try:
                 yield
             finally:

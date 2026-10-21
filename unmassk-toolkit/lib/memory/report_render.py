@@ -1,63 +1,6 @@
-"""Convertir el informe de zona/palabra en texto -- contrato en
-docs/memoria-v2/PIEZAS.md Sec.9.3 (ficha compartida con Sec.9.2,
-report.py). `report.py` decide QUE se enseña; este modulo lo pinta.
+"""Render a zone report or a word-search report as text.
 
-De que salida se deriva, palabra por palabra [TEXTOS.md]: el informe de
-zona con contenido (Sec.2.1), la zona vacia (Sec.2.2) y la busqueda por
-palabra (Sec.2.3). Esos bloques son la salida, no un ejemplo -- las
-cajas (`====`/`----`), el espaciado y los emojis de cabecera
-(``emojis.SECTION_EMOJI``) se copian de ahi.
-
-Que NO hace [Sec.9.2]: no decide nada -- recibe ``ZoneReport``/
-``WordReport`` ya construidos por ``report.py`` y no lee de git ni de
-``zones.json``/``ARCHIVED.md`` por su cuenta. Si un dato hace falta para
-pintar algo y no esta en el objeto recibido, no se va a buscar: es una
-ausencia del modelo, no de este fichero, y se documenta abajo en vez de
-inventarse.
-
-CINCO DESVIACIONES DECLARADAS frente a la letra literal de TEXTOS.md,
-cada una porque el dato que haria falta no existe en ``model.py`` o
-rompe una garantia que si esta pedida por un test [Sec.0.1]:
-
-1. **El texto de `Why:`/`Description:`/preguntas no se envuelve en
-   varias lineas** como en el ejemplo de TEXTOS. Envolverlo partiria el
-   texto literal en trozos con su propia sangria, y
-   `test_render_zone_restriction_shows_why_label_and_text_not_only_headline`
-   exige que el texto del `why` sobreviva ENTERO y contiguo en el
-   render -- envolver y no envolver son incompatibles, y gana el test.
-2. **Las incidencias no llevan "cerrada"/"ABIERTA" ni la flecha "->
-   parió R-018"**: ``model.Note`` no tiene un campo de estado abierto/
-   cerrado ni una lista de "que nacio de mi" navegable desde la propia
-   incidencia -- inventar esa relacion aqui seria decidir un dato que
-   este modulo no tiene, lo que Sec.9.2 prohibe expresamente.
-3. **Los racimos de decision no incluyen una fila "acta de plan"**
-   (`#47  plan-login.md  acta  ...`): ``clusters.group`` solo agrupa
-   tipos D/X (ver ``report.py::_DECISION_TYPES``), y una nota de acta no
-   es ninguno de los dos en el pipeline real -- no hay forma de que un
-   ``Cluster`` real traiga esa fila.
-4. **La zona vacia no lleva "dada de alta el <fecha>" ni "Zonas
-   parecidas que si tienen contenido"**: ``model.Zone`` no guarda fecha
-   de alta, y comparar con el recuento de otras zonas exige una lista de
-   zonas hermanas que ``ZoneReport`` no trae como campo -- mismo
-   supuesto 2 que ya declara el docstring de
-   ``tests/memory/test_report_render.py``.
-5. **El pie de la busqueda por palabra usa el propio `word`, no un
-   nombre de zona** ("Estado completo de una zona: gitmem search
-   billing" en TEXTOS Sec.2.3): ``WordReport`` no expone que zona es "la
-   mas relevante" -- elegir una seria decidir, y este modulo no decide.
-
-Sin estas cinco, el resto del texto -- titulos de seccion, orden,
-cajas, "CERO NOTAS", el marcador `>` y la etiqueta UTC -- es literal de
-TEXTOS.md Sec.2.1/2.2/2.3.
-
-Quien lo llama [Sec.9.2]. `bin/memory/search.py`. `dispatch` tambien lo
-llamaba -- retirado entero [decision del propietario, 2026-08-03, B20]:
-cada agente busca su propia memoria de proyecto, ya no hay un vigilante
-que reparta por oficio.
-
-`lib/memory/` no importa nada del toolkit fuera de la biblioteca estandar
-de Python [PIEZAS.md Sec.13]. Import plano entre hermanos
-[PIEZAS.md Sec.3.3bis].
+Pure presentation: it draws the `ZoneReport`/`WordReport` it receives and reads nothing else.
 """
 
 from datetime import datetime, timezone
@@ -78,7 +21,6 @@ from report_render_blocks import (
 _BOX_WIDTH = 72
 _DIVIDER = "═" * _BOX_WIDTH  # ====
 _THIN_DIVIDER = "─" * _BOX_WIDTH  # ----
-# Copiado literal de TEXTOS.md Sec.2.2 -- no tecleado de memoria.
 _CERO_NOTAS = "⚠  C E R O   N O T A S"
 
 _RESTRICTION_TYPES = frozenset({"R"})
@@ -88,7 +30,7 @@ _MEMO_TYPES = frozenset({"M"})
 _INCIDENT_TYPES = frozenset({"I"})
 _QUESTION_TYPES = frozenset({"Q"})
 
-_MARK = "› "  # el marcador "> " de TEXTOS Sec.2.3
+_MARK = "› "  # marks a line that matched the word
 _NO_MARK = "  "
 
 
@@ -99,36 +41,19 @@ def _header_line(left: str, right: str) -> str:
     return f"{left}{' ' * gap}{right}"
 
 
-# Alias publicos -- reutilizados por report_render_note.py (informe de una
-# nota por su id, TEXTOS.md Sec.2.4) sin duplicar ninguna de las cuatro
-# piezas de arriba. Mismo principio que ``vocabulary.TYPE_INDEX_FILES`` se
-# hizo publica para reuso entre hermanos: una sola copia, nunca dos.
-# report_render_note.py se separo de este fichero (no una funcion mas
-# aqui) por el mismo techo de 500 lineas que ya partio format.py/
-# validator.py [DEUDA.md puntos 12/14].
+# Public aliases shared with report_render_note.py.
 DIVIDER = _DIVIDER
 THIN_DIVIDER = _THIN_DIVIDER
 header_line = _header_line
-# La etiqueta UTC vive en `timefmt.py` desde 2026-08-05: estaba escrita
-# aqui y otra vez en `boot.py`, y las dos copias ya habian empezado a
-# separarse -- una convertia la zona horaria y la otra no. Se reexporta
-# para no tocar a `report_render_note.py`, que la usa por este nombre.
 utc_label = timefmt.utc_label
 
 
-# Alias publico de `_NO_MARK` -- mismo motivo que `DIVIDER`/`THIN_DIVIDER`
-# mas arriba: `report_render_chain.py` (vista `--chain`, D-056) lo
-# reutiliza sin duplicarlo.
+# Public alias shared with report_render_chain.py.
 NO_MARK = _NO_MARK
 
 
 def _cluster_block(cluster: Cluster) -> list[str]:
-    """El racimo completo -- raiz mas hijos, con su estado
-    (descartada/vigente/archivada) y el puntero que los conecta
-    [TEXTOS Sec.2.1]. Solo lo usa ``render_zone``: es el unico que
-    recibe ``Cluster`` ya armados por ``clusters.group`` (con
-    ``archived_ids``); ``render_word`` no tiene ese dato (desviacion 3).
-    """
+    """Render a decision cluster: the root, then each child with its status and pointer."""
     root = cluster.root
     lines = [_header_line(f"  {root.id}  {root.headline}", root.timestamp.strftime("%Y-%m-%d"))]
     if root.why:
@@ -162,9 +87,7 @@ def _cluster_block(cluster: Cluster) -> list[str]:
 
 
 def _empty_zone_lines() -> list[str]:
-    """El bloque CERO NOTAS -- literal de TEXTOS.md Sec.2.2 salvo la
-    fecha de alta y "zonas parecidas" (desviacion 4 del docstring del
-    modulo: ``model.Zone``/``model.ZoneReport`` no traen esos datos)."""
+    """Return the CERO NOTAS block shown for a zone with no notes."""
     return [
         " " * 14 + _CERO_NOTAS,
         "",
@@ -190,13 +113,9 @@ def _section(
     archived_notes: frozenset[Note],
     compact: bool = False,
 ) -> None:
-    """Aniade una seccion (titulo + un bloque por nota) a ``lines`` si
-    ``notes`` no esta vacio -- una zona/trozo sin ninguna nota de ese
-    tipo no imprime una seccion vacia. ``compact`` deja una sola linea
-    en blanco al final en vez de una por nota (los memos, de una linea
-    cada uno [TEXTOS Sec.2.1]). ``archived_notes`` es lo que le dice a
-    cada ``block_fn`` si SU nota va marcada ``archivada`` [D-056] --
-    mismo conjunto que ``ZoneReport.archived_notes``/``WordChunk.archived_notes``.
+    """Append a section title and one block per note to `lines`; nothing when `notes` is empty.
+
+    `compact` puts a single blank line after the section instead of one per note.
     """
     if not notes:
         return
@@ -221,9 +140,7 @@ def _cluster_section(lines: list[str], title: str, clusters: tuple[Cluster, ...]
 
 
 def _render_zone_sections(r: ZoneReport) -> list[str]:
-    """Las seis secciones del cuerpo, en el orden fijado por contrato
-    [PIEZAS Sec.9.2, spec Sec.8] -- separado de ``render_zone`` para que
-    ninguna de las dos pase de 50 lineas."""
+    """Return the six body sections of a zone report, in contract order."""
     lines: list[str] = []
     before_decisions = (
         (
@@ -258,15 +175,7 @@ def _render_zone_sections(r: ZoneReport) -> list[str]:
 
 
 def render_zone(r: ZoneReport) -> str:
-    """El informe de una zona, llena o vacia [TEXTOS Sec.2.1/2.2].
-
-    El orden es contrato, no gusto [PIEZAS Sec.9.2, spec Sec.8]:
-    restricciones arriba y literales, bloqueantes, racimos de
-    decisiones, memos, incidencias y las preguntas al final bajo
-    "OPEN QUESTIONS". Una zona sin ninguna nota (``live_count`` y
-    ``archived_count`` los dos a cero) dice CERO NOTAS en vez de listar
-    seis secciones vacias -- Sec.9.2, "Sus tests", fila 3.
-    """
+    """Render a zone report; a zone with no notes at all shows CERO NOTAS."""
     lines = [_DIVIDER]
     total = r.live_count + r.archived_count
 
@@ -294,14 +203,7 @@ def render_zone(r: ZoneReport) -> str:
 
 
 class _TypeSplit(NamedTuple):
-    """Las notas de un ``WordChunk`` separadas por tipo -- detalle
-    privado de este modulo, no una forma del sistema (Sec.5.3 reserva
-    eso a ``model.py``). ``WordChunk`` no trae los recuentos ya
-    separados como ``ZoneReport`` (``report.py`` no los construye para
-    la busqueda por palabra), asi que es este modulo quien los separa
-    para pintarlos -- clasificar por un campo que ya existe en la nota
-    (``note.type``) es parte de "convertir en texto", no una decision
-    nueva."""
+    """The notes of a `WordChunk` split by type."""
 
     restrictions: list[Note]
     blockers: list[Note]
@@ -330,9 +232,7 @@ def _chunk_header(chunk: WordChunk) -> str:
 
 
 def _chunk_sections(chunk: WordChunk, by_type: _TypeSplit) -> list[str]:
-    """Las cinco secciones del cuerpo de un trozo (todo menos preguntas,
-    que ``render_word`` agrega una sola vez al final) -- separado de
-    ``_chunk_body`` para que ninguna de las dos pase de 50 lineas."""
+    """Return a chunk's sections, all but questions."""
     lines: list[str] = []
 
     def marker_for(note: Note) -> str:
@@ -373,12 +273,10 @@ def _chunk_sections(chunk: WordChunk, by_type: _TypeSplit) -> list[str]:
 def _chunk_body(
     chunk: WordChunk, pending_questions: list[tuple[Note, bool, bool]]
 ) -> list[str]:
-    """El cuerpo de un trozo de la busqueda por palabra -- todo menos
-    las preguntas, que ``render_word`` agrega una sola vez al final
-    [TEXTOS Sec.2.3]. Cada pregunta pendiente guarda tambien si esta
-    archivada [D-056] -- el propio trozo ya lo sabe (``chunk.archived_notes``),
-    y ``render_word`` no tiene ningun ``WordChunk`` a mano cuando pinta
-    el bloque agregado al final."""
+    """Return a chunk's body and append its questions to `pending_questions`.
+
+    Each pending entry is `(note, matched, archived)`.
+    """
     lines = [_chunk_header(chunk), ""]
     by_type = _split_by_type(chunk.notes)
     lines.extend(_chunk_sections(chunk, by_type))
@@ -390,11 +288,7 @@ def _chunk_body(
 
 
 def render_word(r: WordReport) -> str:
-    """La busqueda por palabra suelta, a traves de varias zonas
-    [TEXTOS Sec.2.3]. Las preguntas de TODOS los trozos se agregan bajo
-    un unico "OPEN QUESTIONS" al final del informe completo, nunca
-    una vez por trozo [Sec.9.2, fila 1 de "Sus tests" aplicada aqui].
-    """
+    """Render a word search across zones; all questions are gathered under one final section."""
     lines = [_DIVIDER]
     lines.append(
         _header_line(
@@ -422,16 +316,3 @@ def render_word(r: WordReport) -> str:
     lines.append(_THIN_DIVIDER)
     lines.append(f"  Historia completa, con lo archivado:   gitmem search «{r.word}» --todo")
     return "\n".join(lines)
-
-
-# `render()` -- BORRADA 2026-08-04 [correccion, decision del orquestador,
-# revocable]. Era un alias que despachaba por tipo, creado SOLO para que
-# `vocabulary.FIELDS["why"]`/`["description"]` declarasen un lector con
-# ese nombre exacto y la vacuna reflexiva de `test_vocabulary.py`
-# encontrara un simbolo que resolviera -- nadie la llamaba de verdad, ni
-# fuera del modulo ni dentro: `bin/memory/search.py` siempre llamo
-# directamente a `render_zone`/`render_word`. Un lector de mentira puesto
-# para engañar al mismo chequeo que existe para impedir justo eso
-# [mismo fallo que `Sources:` en el sistema v1, docstring de
-# `vocabulary.py`]. `vocabulary.FIELDS["why"]`/`["description"]` ya
-# declaran `"report_render.render_zone"` como lector real.

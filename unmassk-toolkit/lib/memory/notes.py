@@ -1,20 +1,6 @@
-"""Escribir una nota y su linea de indice, en el mismo commit, o ninguna
-de las dos: una sin la otra es corrupcion silenciosa.
+"""Write, replace and close notes: the note and its index line land in one commit, or neither.
 
-El orden de `write` es el contrato:
-
-    candado -> identificador -> validar -> escribir el indice
-            -> commit de nota + indice JUNTOS
-            -> si git falla (o salta una excepcion): restaurar el indice
-               y propagar el error real de git
-
-`replace()`/`close()` siguen el mismo orden retirando una linea existente:
-el id nuevo se calcula antes de retirar la vieja, y se restaura el texto
-completo capturado antes de escribir. `next_id()` recibe siempre el indice
-vivo mas los ids archivados (`index_with_archived`), o un id se reusa.
-
-La mecanica de git vive en `notes_commit.py`; la de retirar y archivar, en
-`notes_promote.swap_and_archive()`. Las dos se reexponen aqui.
+On a git failure or exception the index is restored and the git error is returned.
 """
 
 import dataclasses
@@ -38,8 +24,7 @@ from notes_commit import (
     stage_and_commit,
     write_work,
 )
-# Reexpuestos bajo el mismo nombre: `notes.promote` sigue alcanzable
-# igual para `bin/memory/note.py`.
+# Re-exported for callers such as `bin/memory/note.py`.
 from notes_promote import index_with_archived, promote, swap_and_archive  # noqa: F401
 from validator import Context, validate_note
 from vocabulary import INDEX_FILES, TYPE_INDEX_FILES
@@ -53,7 +38,7 @@ assert _ARCHIVE_FILE in INDEX_FILES, (
 
 
 def write(note: Note, ctx: Context) -> WriteResult:
-    """Escribe `note` y su linea de indice en un solo commit, o nada."""
+    """Write `note` and its index line in one commit, or nothing."""
     root = repo_root()
     pm = pm_root(root)
     with gitcmd.file_lock(lock_resource(root)):
@@ -65,7 +50,7 @@ def write(note: Note, ctx: Context) -> WriteResult:
             new_id = ids.next_id(note.type, index_with_archived(current_index, pm))
             candidate = dataclasses.replace(note, id=new_id)
         else:
-            # Tipo fuera del vocabulario: `validate_note` lo rechaza abajo.
+            # Unknown type: `validate_note` rejects it below.
             candidate = note
 
         rejections = validate_note(candidate, ctx)
@@ -90,7 +75,7 @@ def write(note: Note, ctx: Context) -> WriteResult:
 
         if git_result.returncode != 0:
             restore_index_best_effort(candidate.id, index_name, pm)
-            # `stage_and_commit()` ya limpia el staging area.
+            # `stage_and_commit()` already cleans the staging area.
             return WriteResult(ok=False, note_id=None, rejections=(), git_error=git_result.stderr)
 
         return WriteResult(ok=True, note_id=candidate.id, rejections=(), git_error=None)
@@ -99,9 +84,7 @@ def write(note: Note, ctx: Context) -> WriteResult:
 def refused_alternatives(
     alternatives: tuple[Note, ...], ctx: Context
 ) -> tuple[tuple[Note, tuple[Rejection, ...]], ...]:
-    """Cada alternativa que rebota, con sus rechazos. Cada una se compara
-    tambien con las anteriores ya aceptadas: la misma alternativa dos veces
-    rebota en la puerta de duplicados igual que si ya estuviera escrita."""
+    """Each refused alternative with its rejections; accepted ones count as existing for the next."""
     refused = []
     accepted: tuple[Note, ...] = ()
     for alternative in alternatives:
@@ -121,12 +104,9 @@ def discard_alternatives(
     ctx: Context,
     write_decision: Callable[[Note, Context], WriteResult] = write,
 ) -> tuple[WriteResult, ...]:
-    """Escribe `decision` y cada una de `alternatives`, cada una en su propio
-    commit, con `origin` apuntando al id real de la decision.
+    """Write `decision`, then each alternative in its own commit with `origin` set to the decision's id.
 
-    Todas las alternativas se validan antes de escribir nada: si alguna rebota,
-    vuelve un solo resultado con todos sus rechazos. `write_decision(decision,
-    ctx)` escribe la decision (`write`, o `replace`/`promote` envueltas).
+    All alternatives are validated first; any refusal returns one result with every rejection.
     """
     rejections = tuple(r for _alt, found in refused_alternatives(alternatives, ctx) for r in found)
     if rejections:
@@ -150,9 +130,7 @@ def discard_alternatives(
 
 
 def replace(new: Note, old_id: str, ctx: Context) -> WriteResult:
-    """Sustituye `old_id` por `new` en un solo commit; la vieja se archiva
-    como "replaced by <new_id>". Delega en `swap_and_archive()`.
-    """
+    """Replace `old_id` with `new` in one commit, archiving the old note as replaced."""
     old_type = old_id.split("-", 1)[0]
     old_index_name = _TYPE_TO_INDEX_FILE.get(old_type)
     if old_index_name is None:
@@ -163,9 +141,7 @@ def replace(new: Note, old_id: str, ctx: Context) -> WriteResult:
 
 
 def _reject_close_reason_multiline(note_id: str, reason: str) -> Rejection | None:
-    """`None` si `reason` cabe en una linea; un `Rejection` si trae un salto
-    de linea, que partiria su entrada de ARCHIVED.md.
-    """
+    """Rejection if `reason` holds a newline (it would split its ARCHIVED.md line), else None."""
     if "\n" not in reason:
         return None
     what = "el motivo de cierre trae un salto de linea propio"
@@ -191,14 +167,12 @@ def close(
     commit: str | None = None,
     relaunch_for: Callable[[str], str] | None = None,
 ) -> WriteResult:
-    """Cierra `note_id` con `reason` en un solo commit: sale de su indice y
-    entra en ARCHIVED.md como "closed: <reason>". `ctx` no se usa.
+    """Close `note_id` in one commit: move it from its index to ARCHIVED.md as "closed: <reason>".
 
-    Se rechaza antes de tocar nada si `reason` trae un salto de linea, o si
-    varias lineas vivas llevan `note_id` y `commit` no elige una (D-145).
-    `relaunch_for(sha)` da el comando de ese rechazo.
+    Rejected before any write when `reason` is multiline, or when several live lines carry
+    `note_id` and `commit` does not pick one; `relaunch_for(sha)` builds that relaunch command.
     """
-    del ctx  # recibido por simetria de Superficie, sin uso
+    del ctx  # unused; kept for a uniform signature
     rejection = _reject_close_reason_multiline(note_id, reason)
     if rejection is not None:
         return WriteResult(ok=False, note_id=None, rejections=(rejection,), git_error=None)
@@ -219,7 +193,7 @@ def close(
         if duplicate is not None:
             return WriteResult(ok=False, note_id=None, rejections=(duplicate,), git_error=None)
         indexes.remove(note_id, index_name, pm, only=line)
-        if line is None:  # no deberia ocurrir -- ver replace()
+        if line is None:  # should not happen
             raise RuntimeError(f"inconsistencia interna: {note_id!r} se retiro de {index_name}")
 
         archive_path = pm / _ARCHIVE_FILE
@@ -239,7 +213,7 @@ def close(
             restore_snapshot_best_effort(index_path, index_snapshot)
             restore_snapshot_best_effort(archive_path, archive_snapshot)
 
-        try:  # asunto: literal de TEXTOS.md Sec.4
+        try:
             git_result = stage_and_commit(f"closed: {reason}", touched, root)
         except BaseException:
             _restore_all()
@@ -247,7 +221,7 @@ def close(
 
         if git_result.returncode != 0:
             _restore_all()
-            # `stage_and_commit()` ya limpia el staging area.
+            # `stage_and_commit()` already cleans the staging area.
             return WriteResult(ok=False, note_id=None, rejections=(), git_error=git_result.stderr)
 
         return WriteResult(ok=True, note_id=note_id, rejections=(), git_error=None)

@@ -1,31 +1,7 @@
 #!/usr/bin/env python3
-"""bin/memory/next.py -- el [NEXT] del cierre de sesion: un commit
-GENUINAMENTE vacio, sin zonas, sin identificador, sin linea de indice y
-sin lapida [spec-sistema-memoria-v2.md Sec.9].
+"""`gitmem next`: write the session-close [NEXT] commit (headline plus prose context).
 
-Contrato: docs/memoria-v2/PIEZAS.md Sec.10 (fila `next.py`, renombrada
-desde `context.py` -- decision del propietario, 2026-08-03: "el comando
-escribe el cierre de sesion, y lo que importa de el es el Next").
-Subcomando `next`.
-
-Grammar de CLI (ASUNCION, sin fuente literal en TEXTOS.md para este
-script -- ver el docstring de test_next_script.py, que la fija por
-consistencia con `--zones`/`--description` de `note.py`, donde un campo
-de texto libre obligatorio va por flag aunque no sea opcional):
-
-    next.py "<titular>" --context "<resumen en prosa>" [--keys k1 k2 ...]
-
-`context.write()` (modulo `lib/memory/context.py`, sin renombrar -- solo
-cambian el script y el subcomando, PIEZAS.md Sec.10) es la unica
-escritura del sistema exenta de aduana a proposito [docstring del
-modulo: "sin candado, sin aduana, sin indice"] -- por eso este script no
-arma ningun `Context` del validador ni llama a `validate_note`: no hay
-nada que validar.
-
-**El cuerpo es prosa corrida, no una lista de puntos** [decision del
-propietario, 2026-08-03, COLA.md Sec.5]: `--context` reemplaza al
-`--point` repetible de antes -- `ContextNote.context` es una unica
-cadena (posiblemente multilinea), nunca una tupla de puntos.
+Usage: next.py "<headline>" --context "<prose>" [--keys k1 k2 ...]
 """
 
 import argparse
@@ -39,7 +15,7 @@ _LIB_MEMORY_DIR = os.path.join(_TOOLKIT_ROOT, "lib", "memory")
 if _LIB_MEMORY_DIR not in sys.path:
     sys.path.insert(0, _LIB_MEMORY_DIR)
 
-from utf8 import force_utf8_streams  # noqa: E402  (import tras sys.path)
+from utf8 import force_utf8_streams  # noqa: E402  (import after sys.path)
 
 force_utf8_streams()
 
@@ -59,14 +35,7 @@ def _parse_args(argv):
 def main(argv):
     args = _parse_args(argv)
 
-    # `--context` obligatorio solo garantiza que la BANDERA venga; no que
-    # traiga nada dentro. Y un cierre con el cuerpo vacio se guardaba
-    # diciendo que todo fue bien: la unica constancia de lo hablado en toda
-    # la sesion, perdida sin un aviso [hallazgo de Argus, 2026-08-05].
-    #
-    # No es aduana -- este commit sigue exento de validar la nota. Es que
-    # un campo vacio no es una nota corta: es la ausencia del unico
-    # contenido que este comando existe para escribir.
+    # The flag is required, but its value can still be blank: reject it.
     if not args.context_prose.strip():
         print(
             "⛔ CIERRE RECHAZADO — el contexto viene vacio\n\n"
@@ -79,11 +48,7 @@ def main(argv):
         )
         return 1
 
-    # El timestamp real lo pone git (fecha de autor del commit); este
-    # valor es un marcador de posicion que `format.build_context_message`
-    # ni siquiera escribe en el texto -- mismo trato que `Note.timestamp`
-    # en `note.py` [context.py, docstring: "el [NEXT] reconstruye el
-    # timestamp real de git" al LEER, no al escribir].
+    # Placeholder: the real timestamp is the commit's author date.
     note = ContextNote(
         headline=args.headline,
         context=args.context_prose,
@@ -103,6 +68,6 @@ def main(argv):
 if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
-    except Exception as exc:  # nunca una traza de pila -- PIEZAS.md Sec.10
+    except Exception as exc:  # never a stack trace
         print(f"next.py: {exc}", file=sys.stderr)
         sys.exit(1)

@@ -1,11 +1,6 @@
-"""El ascenso de una pregunta (Q): sube a memo (M) si la respuesta es un
-hecho, cae a descarte (X) si es que no. La Q sale a `ARCHIVED.md` como
-"promoted".
+"""Promote a question (Q) to a memo (M) or a discard (X), archiving the Q as "promoted".
 
-`swap_and_archive()` es la mecanica que comparten `notes.replace()` y
-`promote()`: candado, id nuevo, retirada de la linea vieja, insercion de la
-nueva, archivado y commit, o restauracion de los indices si algo falla.
-`notes.py` importa de aqui y lo reexpone; este fichero no importa `notes`.
+Also holds `swap_and_archive()`, shared with `notes.replace()`.
 """
 
 import dataclasses
@@ -31,9 +26,7 @@ assert _ARCHIVE_FILE in INDEX_FILES, (
 
 
 def index_with_archived(current_index: tuple[IndexLine, ...], pm: Path) -> tuple[IndexLine, ...]:
-    """`current_index` mas una linea hueca por cada id ya archivado en `pm`,
-    para que `ids.next_id` nunca reuse un id archivado.
-    """
+    """`current_index` plus an empty line per archived id, so `ids.next_id` never reuses one."""
     archived = indexes.archived_ids(pm)
     return current_index + tuple(
         IndexLine(id=archived_id, zone1="", zone2="", headline="")
@@ -52,13 +45,10 @@ def swap_and_archive(
     pre_check=None,
     also_replaces: str | None = None,
 ) -> WriteResult:
-    """Retira `old_id` de `old_index_name`, escribe `new` con un id nuevo en
-    su indice y archiva la vieja con `destination`: todo en un commit, o nada.
+    """Retire `old_id`, write `new` under a fresh id and archive the old note: one commit, or nothing.
 
-    El id nuevo se calcula antes de retirar la vieja. `link_replaces` pone
-    `replaces=old_id` en la nota nueva. `pre_check(pm)` corre dentro del
-    candado, antes de tocar ningun indice. `also_replaces`: una segunda nota
-    viva que `new` sustituye; se archiva como "replaced" en el mismo commit.
+    `pre_check(pm)` runs inside the lock before any index is touched; `also_replaces` is a second live
+    note archived as "replaced" in the same commit.
     """
     root = repo_root()
     pm = pm_root(root)
@@ -79,7 +69,7 @@ def swap_and_archive(
         if duplicate is not None:
             return WriteResult(ok=False, note_id=None, rejections=(duplicate,), git_error=None)
         indexes.remove(old_id, old_index_name, pm, only=old_line)
-        if old_line is None:  # no deberia ocurrir: mismo candado desde la lectura
+        if old_line is None:  # cannot happen: same lock since the read
             raise RuntimeError(f"inconsistencia interna: {old_id!r} se retiro de {old_index_name}")
 
         index_name_new = _TYPE_TO_INDEX_FILE.get(new.type)
@@ -90,7 +80,7 @@ def swap_and_archive(
             candidate = dataclasses.replace(
                 new, id=new_id, replaces=(old_id if link_replaces else new.replaces)
             )
-        else:  # tipo fuera del vocabulario -- validate_type lo rechaza abajo
+        else:  # unknown type: validate_type rejects it below
             candidate = dataclasses.replace(new, replaces=old_id) if link_replaces else new
 
         rejections = validate_note(candidate, ctx)
@@ -98,7 +88,7 @@ def swap_and_archive(
             restore_snapshot_best_effort(old_index_path, old_index_snapshot)
             return WriteResult(ok=False, note_id=None, rejections=rejections, git_error=None)
 
-        # index_name_new nunca es None aqui: validate_type ya lo habria rechazado.
+        # index_name_new is not None here: validate_type would have rejected it.
         new_index_path = pm / index_name_new
         snapshots = {old_index_path: old_index_snapshot}
         snapshots.setdefault(new_index_path, new_index_path.read_text(encoding="utf-8"))
@@ -165,8 +155,7 @@ def swap_and_archive(
 
 
 def _retire_live(note_id: str, pm: Path, snapshots: dict) -> tuple[IndexLine | None, Rejection | None]:
-    """Retira de su indice la unica linea viva de `note_id`; guarda antes en
-    `snapshots` el texto previo de ese indice si aun no estaba."""
+    """Remove the single live index line of `note_id`, snapshotting its index first."""
     index_name = _TYPE_TO_INDEX_FILE.get(note_id.split("-", 1)[0])
     if index_name is None:
         raise ValueError(f"{note_id!r}: tipo desconocido, ningun indice le corresponde")
@@ -183,11 +172,8 @@ def _retire_live(note_id: str, pm: Path, snapshots: dict) -> tuple[IndexLine | N
     return line, None
 
 
-# Los dos rechazos de --promotes no tienen molde en TEXTOS.md todavia.
 def _reject_bad_promotes_target(new: Note, question_id: str, pm: Path) -> Rejection | None:
-    """`None` si `question_id` es una Q vigente; si no, el `Rejection` que lo
-    explica. Corre antes de tocar ningun indice.
-    """
+    """None if `question_id` is a live Q, else the Rejection explaining why."""
     relaunch = (
         f'gitmem note {new.type} --zones {new.zone1} {new.zone2} '
         f'"{new.headline}" --description "..." --promotes <ID de una Q real>',
@@ -218,10 +204,7 @@ def _reject_bad_promotes_target(new: Note, question_id: str, pm: Path) -> Reject
 
 
 def promote(new: Note, question_id: str, ctx: Context) -> WriteResult:
-    """Asciende `question_id` (una Q vigente) a `new`, sin enlazar `replaces`.
-    Si `new.replaces` es un id real, esa nota se archiva como sustituida en el
-    mismo commit.
-    """
+    """Promote live question `question_id` to `new`; a real `new.replaces` is archived in the same commit."""
     replaced = new.replaces if new.replaces not in (None, "none") else None
     return swap_and_archive(
         question_id,

@@ -1,10 +1,6 @@
-"""Leer y escribir los ocho ficheros de indice: la unica pieza que los abre.
+"""Read and write the eight index files; the only module that opens them.
 
-No commitea (eso lo hace `notes`) ni decide a que indice va cada nota. El
-formato de cada linea es de `format.py`. `insert`/`archive`/`remove` fallan
-en alto si el fichero no existe: nunca lo crean vacio. `counts` lee cada
-vez, nunca guarda un numero.
-"""
+Writers fail loud when the file is missing and never create it empty."""
 
 from datetime import datetime, time, timezone
 from pathlib import Path
@@ -17,7 +13,7 @@ from vocabulary import INDEX_FILES
 
 _ARCHIVE_NAME = "ARCHIVED.md"
 
-# Cabeceras literales de TEXTOS.md Sec.4, byte a byte (texto de salida).
+# Literal file headers (output text).
 _DISCARDED_HEADER = (
     "# Permanente: aquí nada se archiva. Existe para que nadie lo re-proponga.\n"
 )
@@ -28,7 +24,7 @@ _ARCHIVE_HEADER = (
 
 
 def _header_for(name: str) -> str:
-    """La cabecera de `name`: literal para DISCARDED.md y ARCHIVED.md, la regla comun para el resto."""
+    """Return the header line for index file `name`."""
     if name == _ARCHIVE_NAME:
         return _ARCHIVE_HEADER
     if name == "DISCARDED.md":
@@ -46,7 +42,7 @@ def _archive_path(root: Path) -> Path:
 
 
 def _require_index_file(name: str) -> None:
-    """Falla en alto, antes de tocar disco, si `name` no es uno de los ocho indices."""
+    """Raise ValueError before touching disk if `name` is not one of the eight indexes."""
     if name not in INDEX_FILES:
         raise ValueError(
             f"{name!r} no es uno de los ocho indices de vocabulary.INDEX_FILES"
@@ -54,9 +50,7 @@ def _require_index_file(name: str) -> None:
 
 
 def seed(root: Path) -> None:
-    """Crea los ocho ficheros vacios con su cabecera. Idempotente: un
-    fichero que ya existe no se toca, con notas o sin ellas.
-    """
+    """Create the eight index files with their header; existing files are left untouched."""
     root = Path(root)
     root.mkdir(parents=True, exist_ok=True)
     for name in INDEX_FILES:
@@ -66,10 +60,7 @@ def seed(root: Path) -> None:
 
 
 def read(name: str, root: Path) -> tuple[IndexLine, ...]:
-    """Las lineas de nota de `name`, en el orden del fichero. Falla en
-    alto si `name` no existe todavia -- un indice ausente es un fallo del
-    sistema, no "cero notas".
-    """
+    """Return the note lines of `name` in file order; raise if the file is missing."""
     path = _index_path(name, root)
     if not path.exists():
         raise FileNotFoundError(f"indice inexistente, seed() no corrio: {path}")
@@ -83,9 +74,7 @@ def read(name: str, root: Path) -> tuple[IndexLine, ...]:
 
 
 def read_archive(root: Path) -> tuple[ArchiveLine, ...]:
-    """Las lineas de `ARCHIVED.md`, en el orden del fichero; una linea que no
-    encaja con ningun destino se descarta, como en `read`.
-    """
+    """Return the parseable lines of `ARCHIVED.md` in file order; raise if it is missing."""
     path = _archive_path(root)
     if not path.exists():
         raise FileNotFoundError(f"ARCHIVED.md inexistente, seed() no corrio: {path}")
@@ -99,9 +88,7 @@ def read_archive(root: Path) -> tuple[ArchiveLine, ...]:
 
 
 def insert(line: IndexLine, name: str, root: Path) -> None:
-    """Anade `line` al final de `name`. Falla en alto sin escribir nada si
-    `name` no existe. Lee y escribe bajo un mismo candado, con escritura atomica.
-    """
+    """Append `line` to `name` under its lock with an atomic write; raise if the file is missing."""
     _require_index_file(name)
     path = _index_path(name, root)
     with file_lock(path):
@@ -118,12 +105,9 @@ def insert(line: IndexLine, name: str, root: Path) -> None:
 
 
 def remove(note_id: str, name: str, root: Path, only: IndexLine | None = None) -> int:
-    """Retira la linea de `note_id` de `name` y devuelve cuantas retiro. Falla
-    en alto si `name` no existe o `note_id` no esta en el.
+    """Remove every line of `note_id` from `name` (only the first equal to `only` if given); return the count.
 
-    Sin `only` retira toda linea con ese id; con `only`, solo la primera
-    linea igual a `only`. Mismo candado que `insert()`.
-    """
+    Raise if the file is missing or the id is not in it."""
     _require_index_file(name)
     path = _index_path(name, root)
     with file_lock(path):
@@ -154,9 +138,7 @@ def remove(note_id: str, name: str, root: Path, only: IndexLine | None = None) -
 
 
 def archive(line: ArchiveLine, root: Path) -> None:
-    """Anade `line` al final de `ARCHIVED.md`. Falla en alto sin escribir
-    nada si el fichero no existe. Mismo candado que `insert()`.
-    """
+    """Append `line` to `ARCHIVED.md` under its lock; raise if the file is missing."""
     path = _archive_path(root)
     with file_lock(path):
         if not path.exists():
@@ -179,7 +161,7 @@ def archive(line: ArchiveLine, root: Path) -> None:
 
 
 def archived_ids(root: Path) -> frozenset[str]:
-    """Identificadores que estan en `ARCHIVED.md`; un fichero ausente son cero."""
+    """Return the ids in `ARCHIVED.md`; empty when the file is missing."""
     root = Path(root)
     if not (root / _ARCHIVE_NAME).exists():
         return frozenset()
@@ -187,9 +169,7 @@ def archived_ids(root: Path) -> frozenset[str]:
 
 
 def counts(root: Path) -> Mapping[str, int]:
-    """Cuantas lineas de nota tiene cada uno de los ocho ficheros, leyendo
-    cada vez -- nunca un numero guardado.
-    """
+    """Return the note-line count of each of the eight files, read fresh every time."""
     result: dict[str, int] = {}
     for name in INDEX_FILES:
         if name == _ARCHIVE_NAME:

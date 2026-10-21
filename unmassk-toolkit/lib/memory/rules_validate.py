@@ -1,25 +1,9 @@
-"""Validacion de los tres campos de `add()` (`kind`/`text`/`quote`) --
-partido de `rules.py` por tamano. Nunca toca git ni el fichero -- cada
-funcion rebota sin escribir nada, siempre ANTES de que `add()` toque
-disco.
-
-Nombres sin guion bajo (`TEXT_MAX_CHARS`, `reject_too_long`,
-`reject_invalid_kind`, `reject_invalid_text`, `validate_quote`,
-`QUOTE_NOT_GIVEN`, `reject_rule_not_found`) cruzan a `rules.py`, que los
-llama desde `add()`/`retract()`/`replace()`. Los que solo se llaman
-entre si aqui mismo se quedan privados.
-
-Imports planos entre hermanos. `lib/memory/` no importa nada fuera de la
-biblioteca estandar de Python.
-"""
+"""Validation of a rule's kind, text and quote for `rules.py`; builds rejections, never writes."""
 
 import rejection
 from model import Rejection
 
 
-# Tope de Sec.9.7 -- constante propia, no vocabulary.HEADLINE_MAX: ese
-# tope (80) es del titular de una Note: dominio distinto, valor distinto,
-# declarado explicitamente como "fuera del sistema" [Sec.9.7].
 TEXT_MAX_CHARS = 200
 
 
@@ -39,11 +23,7 @@ def reject_too_long(text: str) -> Rejection:
 
 
 def reject_invalid_kind(kind: str) -> Rejection:
-    """Rebota ANTES de tocar git o el fichero, mismo criterio que
-    `reject_invalid_text` aplicado a `kind`: un salto de linea parte la
-    linea escrita en dos al releer y ninguna vuelve a casar con
-    `_RULE_LINE_RE` -- la regla entera queda invisible.
-    """
+    """Rejection for a kind that is blank or holds a newline (it would split the rule line)."""
     if "\n" in kind:
         what = "el tipo de la regla lleva un salto de linea"
         options = (
@@ -72,13 +52,7 @@ _QUOTE_NONE_LITERAL = "none"
 
 
 def _reject_missing_quote(text: str, kind: str | None, replaces: str | None) -> Rejection:
-    """Rebota ANTES de tocar git o el fichero. Exige cita para AMBOS
-    `kind` por igual -- `--quote none` explicito es la unica salida sin
-    cita real (Claude se deja una nota a si mismo, el propietario no dijo
-    nada). Dispara solo cuando quien llama SI menciono `quote` y viene en
-    blanco y no es `"none"` -- nunca para un llamador que ni siquiera
-    pasa el parametro (`add(text, kind)`).
-    """
+    """Rejection for a blank quote; the relaunch command keeps the given --replaces and --kind."""
     what = "la regla no lleva ni una cita literal ni --quote none explicito"
     options = (
         f'  "{text}"',
@@ -88,8 +62,6 @@ def _reject_missing_quote(text: str, kind: str | None, replaces: str | None) -> 
         "propietario no dijo nada -- asi se colo una correccion real del",
         'propietario guardada como [claude] solo para saltarse la cita.',
     )
-    # El relanzamiento lleva el `--replaces`/`--kind` ya dados: sin ellos,
-    # obedecerlo guarda un alta suelta, o una regla de Claude como [user].
     base = f'gitmem rule "{text}"'
     if replaces is not None:
         base += f' --replaces "{replaces}"'
@@ -105,11 +77,7 @@ def _reject_missing_quote(text: str, kind: str | None, replaces: str | None) -> 
 
 
 def reject_invalid_text(text: str) -> Rejection:
-    """Rebota ANTES de tocar git o el fichero. Dos casos: un salto de
-    linea rompe el formato de una-linea-por-regla (al releer solo se
-    recupera el trozo anterior al salto); vacio o solo espacios no dice
-    nada.
-    """
+    """Rejection for a rule text that is blank or holds a newline."""
     if "\n" in text:
         what = "la regla lleva un salto de linea"
         options = (
@@ -131,17 +99,11 @@ def reject_invalid_text(text: str) -> Rejection:
     )
 
 
-# Reusa el mismo numero que `TEXT_MAX_CHARS`: la cita vive en la MISMA
-# linea fisica que el texto y es, como el, una frase citada, no un
-# parrafo -- no hay motivo para un segundo tope distinto.
 _QUOTE_MAX_CHARS = TEXT_MAX_CHARS
 
 
 def _reject_quote_newline(quote: str) -> Rejection:
-    """Rebota ANTES de tocar git o el fichero: la cita se escribe DENTRO
-    de la misma linea fisica que el texto (sufijo ` — «<cita>»`), y un
-    salto de linea en ella partiria la linea entera al releer.
-    """
+    """Rejection for a quote with a newline (the quote lives on the rule's line)."""
     what = "la cita lleva un salto de linea"
     options = (
         f"  {quote!r}",
@@ -160,9 +122,7 @@ def _reject_quote_newline(quote: str) -> Rejection:
 
 
 def _reject_quote_too_long(quote: str) -> Rejection:
-    """Rebota ANTES de tocar git o el fichero, mismo criterio que
-    `reject_too_long` aplicado a la cita.
-    """
+    """Rejection for a quote over `_QUOTE_MAX_CHARS`."""
     length = len(quote)
     what = f"la cita tiene {length} caracteres y el tope son {_QUOTE_MAX_CHARS}"
     options = (
@@ -178,14 +138,7 @@ def _reject_quote_too_long(quote: str) -> Rejection:
 
 
 def reject_rule_not_found(text: str, kind: str) -> Rejection:
-    """Rebota ANTES de tocar git o el fichero -- `retract()`/`replace()`
-    no encontraron ninguna linea `[kind]` cuyo texto BASE (sin cita)
-    case exacto con `text`. Cubre dos casos por igual: el texto nunca se
-    guardo, o se guardo bajo OTRO `kind` -- identificar solo por texto
-    seria ambiguo en cuanto existieran las dos, asi que un `kind`
-    equivocado rebota con el MISMO mensaje que un texto totalmente
-    ausente, nunca un "no encontre nada, no pasa nada" silencioso.
-    """
+    """Rejection when no `[kind]` rule has exactly `text` (quote excluded)."""
     what = f'no existe ninguna regla [{kind}] con ese texto exacto: "{text}"'
     options = (
         f'  "{text}"',
@@ -203,15 +156,9 @@ def reject_rule_not_found(text: str, kind: str) -> Rejection:
 def validate_quote(
     quote, text: str, kind: str | None = None, replaces: str | None = None
 ) -> tuple[bool, Rejection | None]:
-    """Toda la logica de `quote` que `add()` necesita antes de tocar git
-    o el fichero. Devuelve `(quote_has_content, rejection)` -- `rejection`
-    es `None` si la cita pasa (ausente, `--quote none` explicito, o una
-    cita real dentro de los limites). Llamadores reales: `add()` y
-    `replace()`.
+    """Return `(quote_has_content, rejection)`; rejection is None when the quote is absent, "none" or valid.
 
-    Kind-agnostic: exigir la cita solo para `kind == "user"` dejaria un
-    hueco (una regla del propietario guardada como `[claude]` se
-    saltaria la cita).
+    Applies to every kind alike.
     """
     quote_mentioned = quote is not QUOTE_NOT_GIVEN
     quote_blank = quote_mentioned and (quote is None or not quote.strip())
