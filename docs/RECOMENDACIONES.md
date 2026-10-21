@@ -104,7 +104,7 @@ Ordenado por relación entre impacto y esfuerzo.
    
    Así los proyectos de terceros no cargan con el historial de la memoria.
 
-6. **Memoria fuera de un repo git.** Hoy sin repo no hay memoria. Opción: una memoria global por usuario como respaldo, en `~/.claude/.unmassk/`.
+6. **Memoria fuera de un repo git.** Hoy sin repo no hay memoria. Opción: una memoria global por usuario como respaldo, en `~/.claude/.unmassk/`. — Decidido no hacerlo (Bex, 2026-10-21): fuera de un proyecto no hay memoria.
 
 ### Contenido
 

@@ -122,10 +122,10 @@ Sending a field a type doesn't accept is rejected exactly like omitting a requir
 | **D** | `--description` `--why` | `--keys` `--replaces` `--origin` `--discard` `--issue` |
 | **M** | `--description` `--stops yes\|no` | `--keys` `--replaces` `--origin` `--issue` |
 | **R** | `--description` `--stops yes` | `--why` `--keys` `--replaces` `--origin` `--issue` |
-| **Q** | `--description`, and `--work no` **or** `--issue` | `--keys` · `--quote` (only with `--issue none`) |
-| **X** | `--description` | `--why` `--keys` `--origin` `--issue` |
-| **I** | `--description`, and `--work no` **or** `--issue` | `--why` `--keys` · `--quote` (only with `--issue none`) |
-| **B** | `--description` `--awaits` | `--keys` `--issue` |
+| **Q** | `--description`, and `--work no` **or** `--issue` | `--keys` `--replaces none` · `--quote` (only with `--issue none`) |
+| **X** | `--description` | `--why` `--keys` `--origin` `--issue` `--replaces none` |
+| **I** | `--description`, and `--work no` **or** `--issue` | `--why` `--keys` `--replaces none` · `--quote` (only with `--issue none`) |
+| **B** | `--description` `--awaits` | `--keys` `--issue` `--replaces none` |
 
 **`--replaces`:** `--replaces none` (both notes stand) is valid for all seven types; `--replaces <id>` only for D, M and R, and only over a D, M or R — an X never dies, a Q is promoted, an I closes by its protocol, a B is resolved (D-164). A type outside D, M, R answers an overlap with `--replaces none` or by not saving; its rejection offers no other exit. The relaunch printed carries what you already gave and only fields the type takes.
 

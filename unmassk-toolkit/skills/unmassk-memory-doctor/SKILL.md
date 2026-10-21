@@ -43,7 +43,7 @@ Run all eight. Each names a general failure mode that any project's memory can g
 
 2. **Each agent's memory ↔ its own index.** Every agent that keeps its own memory (today the six builders — Ultron, Dante, Bilbo, House, Alexandria, Moriarty; Cerberus, Argus and Yoda keep none, R-021) has a `MEMORY.md` index plus detail files. For each of them, read its index and its detail files and flag where they disagree. *Failure: an agent's index marks a finding one way and its own detail file marks it the other — same agent, two files, drift nobody checks.*
 
-3. **Semantic duplicates among live notes.** Two live notes in the same zone that mean the same thing in different words — the pair the mechanical same-keys-same-zone gate cannot catch because the words differ. Flag them as "probably one asset written twice; consider `--replaces`." *This is the check only an AI can do, and the reason the doctor is not a script.*
+3. **Semantic duplicates among live notes.** Two live notes in the same zone that mean the same thing in different words — the pair the mechanical same-keys-same-zone gate cannot catch because the words differ. Flag them as "probably one asset written twice; consider `--replaces`" when both are D, M or R; an X pair stays (an X never dies), a Q is promoted, an I closes by its protocol, a B is resolved. *This is the check only an AI can do, and the reason the doctor is not a script.*
 
 4. **Dangling references.** A note or a Next that points at "the pending question", "the decision above", "that note" without a resolvable target. Flag the reference and where it should have pointed. *Failure: a pointer to something the next reader cannot identify, so the thread is lost.*
 
@@ -77,7 +77,7 @@ Group by check, most costly first (a live contradiction beats a time-word). Ever
    • <agent>: index says <x>, detail file says <y>  (<file path>)
 
 3 · SEMANTIC DUPLICATES (live)
-   • M-aaa  ≈  M-bbb  in <zone> — probably one asset twice; consider --replaces
+   • M-aaa  ≈  M-bbb  in <zone> — probably one asset twice; consider --replaces (D, M or R only)
 
 … (checks 4–8) …
 
