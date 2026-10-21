@@ -85,7 +85,7 @@ const Marks = ({ Box, Svg }: Ui, percent: number) => {
   return (
     <Box flexDirection="row" justifyContent="space-between">
       {Array.from({ length: MARKS }, (_, i) => (
-        <Svg key={i} source={i < on ? lit : off} alt="" width={MARK_W} height={MARK_H} />
+        <Svg key={i} source={i < on ? lit : off} alt={i < on ? "▮" : "▯"} width={MARK_W} height={MARK_H} />
       ))}
     </Box>
   )
