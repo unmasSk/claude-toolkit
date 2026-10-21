@@ -161,3 +161,4 @@
 [X-161][hooks][design] big numeral with hairline underline (option B)
 [X-162][hooks][design] single graduated ruler with two pointers (option C)
 [X-163][hooks][design] three stacked cards (option A)
+[X-164][hooks][design] cards with header strips (option C)
