@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.56.0] - 2026-10-21
+
 ### Added
 
 - **Every agent receives the project's walls when it starts** (D-171): a SubagentStart hook, `unmassk-toolkit/hooks/subagent-walls.py`, hands the project's restrictions to each agent at launch, so none works without knowing them.
