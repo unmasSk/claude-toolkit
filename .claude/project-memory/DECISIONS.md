@@ -131,3 +131,4 @@
 [D-168][hooks][design] the Sesión bar shows this session's context used, not the 5-hour limit
 [D-169][hooks][design] usage bars drawn as an instrument of 40 fine marks in the pane's colours
 [D-170][hooks][design] pane B: usage card pinned at bottom, finished tasks in one count line
+[D-171][hooks][memory] a SubagentStart hook gives every agent the project's walls, nothing else
